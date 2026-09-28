@@ -2,7 +2,8 @@
 
 Original Verentis marketplace vector artwork created for this listing in September 2026. Original artwork follows this repository’s applicable license; no additional rights to third-party names or trademarks are granted. Gallery PNGs are actual captures of the pinned Collabora CODE browser editor, not desktop LibreOffice, upstream marketing images or mockups. Collabora/LibreOffice interface artwork and marks remain their owners’ property under applicable upstream component terms, primarily MPL-2.0; see https://github.com/CollaboraOnline/online and https://www.libreoffice.org/about-us/licenses/. The repository THIRD-PARTY-NOTICES.md remains applicable; screenshots do not relicense upstream software or imply endorsement.
 
-- logo.svg and hero.svg: original Verentis product-specific artwork.
+- logo.svg: original Verentis product-specific artwork.
+- hero.svg: original subdued, text-free background with layered paper-like planes. No prominent logo or interface is embedded; the centre remains quiet for marketplace overlays and responsive cover cropping.
 - Gallery: actual local Collabora captures of original synthetic samples.
 - No customer records, external hotlinks or vendor endorsement are part of this listing.
 

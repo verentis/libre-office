@@ -13,7 +13,7 @@ marketplace:
   logo: ./marketplace/logo.svg
   hero:
     source: ./marketplace/hero.svg
-    alt: "Libre Office: Keep documents moving. Documents, spreadsheets and presentations."
+    alt: "Subdued layered paper-like planes on a tonal background, with a quiet centre for the marketplace title, details and install controls."
   images:
     - source: ./marketplace/calc.png
       alt: Actual Collabora spreadsheet editor displaying an original synthetic season budget with areas, budgets and remaining amounts.
