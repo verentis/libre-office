@@ -1,0 +1,9 @@
+workflow: GitHubFlow/v1
+branches:
+  feature:
+    regex: ^feat[/-](?<BranchName>.+)
+    mode: ContinuousDelivery
+    label: '{BranchName}'
+    increment: Patch
+    source-branches:
+      - main
