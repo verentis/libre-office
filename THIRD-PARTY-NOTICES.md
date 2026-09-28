@@ -14,6 +14,7 @@ or a legal determination.
 | Collabora CODE / LibreOffice | `deploy/code.lock.json` | Primarily MPL-2.0 and other component-specific licenses; keep source/notice obligations and distribution terms |
 | Container base systems | pinned Node/CODE images | Multiple distribution licenses; inventory final image SBOMs |
 | Synthetic fixtures | `tests/fixtures/generate.py` | Original minimal documents authored for this repository, no customer or upstream document content |
+| Marketplace samples and captures | `manifests/marketplace/samples/` and `manifests/marketplace/{calc,writer,impress}.png` | Original synthetic documents and actual captures of the pinned CODE editor; interface artwork and marks retain upstream rights. Capture provenance and limitations are recorded in `manifests/marketplace/ASSET-NOTICES.md`. |
 
 Upstream source locations:
 

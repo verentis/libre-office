@@ -1,5 +1,7 @@
 # Libre Office
 
+Installer-facing listing: [Marketplace README](manifests/marketplace/README.md). Development documentation continues below.
+
 Nuxt/Vue editor wrapper and pinned self-hosted Collabora CODE. The platform's
 Collaboration service owns all WOPI admission, scoped credentials, locks and
 durable saves; Office is not a file-storage or OAuth backend.
