@@ -15,24 +15,21 @@ export default defineNuxtConfig({
             : false
     },
     runtimeConfig: {
-        backendUrl: 'http://backend:8080',
+        collaborationUrl: 'http://collaboration:8080',
         codeUrl: 'http://code:9980',
         public: {
-            syntheticOnly: false,
             wrapperOrigin: 'https://office.localtest.me',
-            parentOrigin: '',
-            parentOrigins: '',
             editorOrigin: 'https://code.localhost:8443',
-            wopiOrigin: 'https://wopi.localhost:8443'
+            wopiOrigin: 'https://api.localtest.me'
         }
     },
     app: {
         head: {
             title: 'Verentis Office',
-            meta: [{ name: 'referrer', content: 'no-referrer' }]
+            meta: [{ name: 'referrer', content: 'strict-origin' }]
         }
     },
     routeRules: {
-        '/**': { headers: { 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' } }
+        '/**': { headers: { 'Referrer-Policy': 'strict-origin', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' } }
     }
 });

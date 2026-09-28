@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url);
 const required = [
     'AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID',
     'ACR_NAME', 'ACR_LOGIN_SERVER', 'AKS_CLUSTER_NAME', 'AKS_RESOURCE_GROUP',
-    'OFFICE_PLATFORM_ORIGIN', 'OFFICE_CLIENT_ID'
+    'PLATFORM_ORIGIN'
 ];
 const dnsName = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const digest = /^sha256:[a-f0-9]{64}$/;
@@ -19,7 +19,7 @@ function requireInput(env, name) {
 
 export function validate(env, lock = JSON.parse(readFileSync(new URL('deploy/code.lock.json', root)))) {
     for (const name of required) requireInput(env, name);
-    for (const name of ['AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID', 'OFFICE_CLIENT_ID']) {
+    for (const name of ['AZURE_CLIENT_ID', 'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID']) {
         if (!/^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(env[name]) ||
             /^0{8}(-0{4}){3}-0{12}$/.test(env[name]))
             throw new Error(`Invalid ${name}: expected nonzero GUID`);
@@ -34,9 +34,9 @@ export function validate(env, lock = JSON.parse(readFileSync(new URL('deploy/cod
     if (!/^[a-z0-9-]+\.azurecr\.io$/.test(env.ACR_LOGIN_SERVER) ||
         env.ACR_LOGIN_SERVER !== `${env.ACR_NAME}.azurecr.io`)
         throw new Error('ACR_LOGIN_SERVER must match ACR_NAME');
-    const sprint = /^https:\/\/api\.(sprint-[a-z0-9]+(?:-[a-z0-9]+)*)\.verentis\.dev$/.exec(env.OFFICE_PLATFORM_ORIGIN);
+    const sprint = /^https:\/\/api\.(sprint-[a-z0-9]+(?:-[a-z0-9]+)*)\.verentis\.dev$/.exec(env.PLATFORM_ORIGIN);
     if (!sprint)
-        throw new Error('OFFICE_PLATFORM_ORIGIN must be the sprint platform API origin');
+        throw new Error('PLATFORM_ORIGIN must be the sprint platform API origin');
     if (lock.repository !== 'docker.io/collabora/code' ||
         !/^\d+(?:\.\d+)+$/.test(lock.tag) || !digest.test(lock.digest))
         throw new Error('Invalid pinned CODE image in deploy/code.lock.json');
@@ -45,23 +45,28 @@ export function validate(env, lock = JSON.parse(readFileSync(new URL('deploy/cod
 
 export function renderSprint(env, lock = JSON.parse(readFileSync(new URL('deploy/code.lock.json', root)))) {
     validate(env, lock);
-    for (const name of ['EDITOR_IMAGE', 'BACKEND_IMAGE']) {
-        if (!new RegExp(`^${env.ACR_LOGIN_SERVER.replaceAll('.', '\\.')}/verentis/office-(?:editor|backend)@sha256:[a-f0-9]{64}$`).test(env[name] ?? '') ||
-            !env[name].includes(`office-${name === 'EDITOR_IMAGE' ? 'editor' : 'backend'}@`))
+    for (const name of ['EDITOR_IMAGE']) {
+        if (!new RegExp(`^${env.ACR_LOGIN_SERVER.replaceAll('.', '\\.')}/verentis/office-editor@sha256:[a-f0-9]{64}$`).test(env[name] ?? ''))
             throw new Error(`Invalid ${name}: expected Office ACR manifest digest`);
     }
     const params = '--o:ssl.enable=false --o:ssl.termination=true ' +
         '--o:ssl.ssl_verification=true ' +
         '--o:server_name=office-code.apps.verentis.dev --o:net.proto=IPv4 ' +
-        '--o:logging.level=warning --o:logging.anonymize.anonymize_user_data=true ' +
+        '--o:net.connection_timeout_secs=120 ' +
+        '--o:logging.level=none --o:logging.level_startup=none ' +
+        '--o:logging.most_verbose_level_settable_from_client=none ' +
+        '--o:logging.least_verbose_level_settable_from_client=none ' +
+        '--o:browser_logging=false --o:logging.protocol=false ' +
+        '--o:logging.file[@enable]=false --o:logging_ui_cmd.file[@enable]=false ' +
+        '--o:trace[@enable]=false --o:admin_console.enable=false ' +
+        '--o:logging.lokit_sal_log=-INFO-WARN --o:logging.anonymize.anonymize_user_data=true ' +
         '--o:home_mode.enable=true';
     const substitutions = {
         __NAMESPACE__: 'verentis-apps',
         __EDITOR_IMAGE__: env.EDITOR_IMAGE,
-        __BACKEND_IMAGE__: env.BACKEND_IMAGE,
         __CODE_IMAGE__: `${lock.repository}:${lock.tag}@${lock.digest}`,
-        __CLIENT_ID__: env.OFFICE_CLIENT_ID,
-        __PLATFORM_ORIGIN__: env.OFFICE_PLATFORM_ORIGIN,
+        __PLATFORM_ORIGIN__: env.PLATFORM_ORIGIN,
+        __PLATFORM_ALLOWLIST__: `${env.PLATFORM_ORIGIN}:443`,
         __CODE_PARAMS__: params,
         __CODE_FRAME_POLICY__: '--o:net.content_security_policy=frame-ancestors https://office.apps.verentis.dev;'
     };

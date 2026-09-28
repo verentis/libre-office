@@ -9,6 +9,11 @@ context:
   - docs/compatibility.md
 ---
 
+> Historical completed milestone, superseded by the platform-owned WOPI
+> cutover. The frozen scope below is not the current architecture or a claim
+> that the new integration is verified. See `architecture.md` and
+> `verification.md` for current boundaries and outstanding runtime evidence.
+
 <frozen-after-approval reason="human-owned intent">
 
 ## Intent
@@ -142,7 +147,7 @@ synthetic successes do not change MIME claims or integration status.
 **Fail-closed integration boundary**
 
 - Start with the explicit unsupported live-session contract.
-  [`LiveAdmission.cs:1`](../services/wopi/LiveAdmission.cs#L1)
+  `services/wopi/LiveAdmission.cs` (historical file removed by the platform cutover).
 - Distinguish platform prerequisites from successful synthetic evidence.
   [`compatibility.md:1`](compatibility.md#L1)
 
@@ -151,7 +156,7 @@ synthetic successes do not change MIME claims or integration status.
 - Follow source/origin validation, handshake readiness, expiry and conservative dirty handling.
   [`app.vue:1`](../apps/editor/app/app.vue#L1)
 - Inspect scoped WOPI operations and bounded content handling.
-  [`WopiEndpoints.cs:1`](../services/wopi/WopiEndpoints.cs#L1)
+  `services/wopi/WopiEndpoints.cs` (historical file removed by the platform cutover).
 - Review transactional test-only locks, sessions and revision checks.
   [`SyntheticStore.cs:1`](../tests/harness/SyntheticStore.cs#L1)
 

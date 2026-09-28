@@ -1,21 +1,17 @@
 metadata:
-  display-name: Office
-  description: Self-hosted Office for Microsoft Office, OpenDocument, RTF, CSV and
+  display-name: Libre Office
+  description: Self-hosted Libre Office for Microsoft Office, OpenDocument, RTF, CSV and
     other CODE-supported formats.
   labels:
     integration-status: production
-    synthetic-tests-only: "false"
 spec:
   entry: https://office.apps.verentis.dev
   capabilities:
-    - hosted-backend
-  hosted-backend:
-    client-id: 914b3d5d-d4aa-5447-9f61-f31bc76cf1c4
-    environment: production
-    endpoint: https://office.apps.verentis.dev
-  permissions:
-    - node.file.read
-    - node.node.create
+    - wopi
+  permissions: []
+  wopi:
+    editor-origin: https://office.apps.verentis.dev
+    operator-origin: https://office-code.apps.verentis.dev
   mime-types:
     - pattern: application/vnd.openxmlformats-officedocument.wordprocessingml.document
       mode: edit

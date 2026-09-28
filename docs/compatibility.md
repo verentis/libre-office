@@ -1,5 +1,11 @@
 # Compatibility and prerequisite assessment
 
+**Historical assessment:** the Office-owned backend/delegation and synthetic
+topology discussed below has been superseded by the platform-owned WOPI cutover.
+Current contracts are in [architecture](architecture.md) and [API](api.md).
+Office no longer requires an OAuth backend client or owns WOPI persistence.
+Historical runtime results are not evidence for the new platform architecture.
+
 Initial assessment on 2026-09-23, before Office implementation. Statements below
 about unexecuted local checks describe that initial assessment. Subsequent
 synthetic runtime, installation and browser evidence is in

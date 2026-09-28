@@ -1,67 +1,48 @@
-# ADR: prerequisite-gated Office
+# Platform-owned WOPI architecture
 
-This records the earlier synthetic-only milestone. The deployable backend now
-uses installation-bound platform delegation, and the live wrapper obtains a
-platform-issued embed ticket before its first navigation. Its browser CSP names
-only the registered workspace origin; the live CODE HTML proxy checks the
-file-scoped WOPI credential with the backend before setting exact workspace
-and Office frame ancestors. See [live local setup](live-local-setup.md).
-The harness behavior below remains deliberately separate from live Office.
+Office contains a Nuxt/Vue wrapper and a pinned Collabora CODE deployment.
+Verentis.Collaboration alone owns sessions, document-scoped credentials,
+discovery/proof verification, locks, mutation receipts and persistence.
+Node remains the authoritative file store. There is no Office database,
+client secret, signing key, WOPI host or platform-file backend.
 
-## Decision
+## Admission and consent
 
-Office owns a Nuxt 4/Vue/TypeScript wrapper and .NET 10 session boundary.
-The public `@verentis/sdk` **0.1.1** `Bridge` performs the parent handshake.
-A capture-phase guard enforces the configured parent origin **and** parent window
-before that SDK sees host messages. CODE child messages use a separate source and
-origin check. No SDK file or credential API is called.
+A verified signed application declares `capabilities: [wopi]`, exact wrapper
+and operator origins, supported formats/actions and bounded session/file limits.
+Workspace administrators review document-processing consent for that candidate.
+Installation establishes revocable editor trust, not blanket document access.
+Every launch and operation still checks current user/document authorization.
+First- and third-party editors use the same contract; no Office-name exception
+or per-editor OAuth-client registration is used.
 
-`services/backend` has no file-store implementation, harness reference, test
-identity handler, configurable admission switch or live adapter. `/sessions`
-always returns 503 and `/wopi/**` always denies. Deployment cannot enable live
-admission by setting an environment flag. This is intentional partial delivery.
+Ordinary applications that call platform APIs retain their existing OAuth
+authentication and backend delegation. A WOPI declaration or package signature
+is not a replacement credential for those APIs.
 
-`services/wopi` contains the reusable protocol and discovery reader. Only
-`tests/harness` composes them with a SQLite implementation. Its fixed identity,
-fixture creation API, database and fixture bytes never enter the deployable
-backend image. The test identity is **not authentication**. Bind the dev proxy
-to loopback; never route the harness onto a public or shared network.
+## Browser boundaries
 
-## Harness transaction boundary
+The platform parent obtains a single-use embed ticket before navigating the
+wrapper. Server-authorized CSP restricts ancestors to that exact workspace.
+The SDK pins the parent window/origin and correlates requests with the host
+session. The parent chooses launch identity from its current installation and
+file context; the child cannot substitute it.
 
-One backend and one CODE instance; no multi-replica or production state claim.
-SQLite WAL transactions durably store:
+Only scoped WOPI launch data reaches the wrapper. It validates the action,
+CODE/platform origins, stable source path, current document context and absolute
+expiry, then form-POSTs the token to CODE. The CODE proxy obtains platform framing
+authorization before admitting wrapper and workspace ancestors. It never handles
+WOPI callbacks. Credentials are not persisted in browser storage.
 
-- synthetic file bytes and monotonically increasing revisions;
-- immutable previous versions;
-- SHA-256 hashes of random 256-bit session credentials, workspace/branch/file,
-  user, read/write permission, admitted revision and absolute expiry;
-- exact opaque WOPI locks and a 30-minute lock expiry.
+## Save and recovery
 
-Write admission rechecks authorization inside an immediate write transaction.
-A lock is necessary but insufficient: compare the authorized request's admitted
-revision with the authoritative head. Replace the bytes, append history and
-advance the session revision in the same transaction. Conflicts do none of these.
-Expiry is never renewed implicitly. Reopening issues a distinct bounded session.
-No credentials are stored in browser local/session storage.
+CODE messages have a separate exact child-window/origin boundary. Modification
+messages latch dirty state in both wrapper and host; route/unload guards preserve
+unverified edits. Explicit saves receive platform checkpoints and pass their
+correlation to CODE. Only a matching durable platform receipt with no later edits
+clears dirty state. Expiry, revocation, conflicts and unavailable status never
+silently acknowledge a save. Reopening goes through fresh platform admission.
 
-## Browser and discovery boundaries
-
-Discovery is fetched only from the operator-configured endpoint, with redirects
-disabled, a timeout, bounded XML, prohibited DTDs and no external resolver.
-Only six synthetic fixture extensions and the requested edit/view action are
-accepted. The browser independently checks exact CODE and WOPI origins,
-the expected file-scoped WOPISrc, supported format, action path and expiry.
-A hidden POST form transfers only a harness WOPI credential to the CODE child.
-No Verentis token is forwarded to Nuxt's proxy, WOPI, CODE or storage.
-
-CODE save notifications are not durable acknowledgements. Dirty state is
-conservative and never cleared by a load event, save request or CODE notification.
-Browser beforeunload is best effort; the host's navigation veto is **unproved**.
-
-## Not addressed by this decision
-
-Gates B–E in [compatibility](compatibility.md) require separate platform changes
-and real Verentis acceptance. No synthetic test establishes app-audience consent,
-revocation, authoritative stable-ID routing, conditional platform upload,
-production collaboration, regional infrastructure ownership or drain correctness.
+See [browser/API contract](api.md) and [verification](verification.md). Real warm
+Collabora open/edit/save/reopen/coauthor/revoke evidence is mandatory; isolated
+unit tests and mock framing responses are not that evidence.

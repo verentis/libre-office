@@ -4,43 +4,41 @@ import { bindFrameAncestors } from '../../../shared/frame-policy.mjs';
 export default defineEventHandler(async (event) => {
     if (event.method !== 'GET' && event.method !== 'POST') throw createError({ statusCode: 405 });
     const config = useRuntimeConfig(event);
-    if (config.public.syntheticOnly === true || String(config.public.syntheticOnly) === 'true')
-        throw createError({ statusCode: 404 });
     const incoming = getRequestURL(event);
     if (!/^\/browser\/[a-zA-Z0-9._/-]+$/.test(incoming.pathname))
         throw createError({ statusCode: 404 });
     if (incoming.search.length > 2048) throw createError({ statusCode: 414 });
     const documentPage = /^\/browser\/[^/]+\/cool\.html$/.test(incoming.pathname);
     if (documentPage && event.method !== 'POST') throw createError({ statusCode: 403 });
+    if (documentPage && getHeader(event, 'origin') !== config.public.wrapperOrigin)
+        throw createError({ statusCode: 403 });
     if (!documentPage && event.method !== 'GET') throw createError({ statusCode: 405 });
 
     let body: string | undefined;
     let parentOrigin: string | undefined;
     if (documentPage) {
         const length = Number(getHeader(event, 'content-length'));
-        if (!Number.isSafeInteger(length) || length < 1 || length > 2048)
+        if (!Number.isSafeInteger(length) || length < 1 || length > 16384)
             throw createError({ statusCode: 413 });
         if (getHeader(event, 'content-type')?.split(';')[0] !== 'application/x-www-form-urlencoded')
             throw createError({ statusCode: 415 });
         body = await readRawBody(event);
-        if (!body || Buffer.byteLength(body) > 2048) throw createError({ statusCode: 413 });
+        if (!body || Buffer.byteLength(body) > 16384) throw createError({ statusCode: 413 });
         const fields = new URLSearchParams(body);
         const credentials = fields.getAll('access_token');
         const sources = incoming.searchParams.getAll('WOPISrc');
-        if (credentials.length !== 1 || !/^[A-Za-z0-9_-]{43}$/.test(credentials[0]!) || sources.length !== 1)
+        if (credentials.length !== 1 || !/^[A-Za-z0-9_.-]{43,8192}$/.test(credentials[0]!) || sources.length !== 1)
             throw createError({ statusCode: 403 });
         let source: URL;
         try { source = new URL(sources[0]!); }
         catch { throw createError({ statusCode: 403 }); }
-        if (source.origin !== config.public.wopiOrigin || source.search || source.hash)
+        if (source.origin !== config.public.wopiOrigin || source.search || source.hash || source.username || source.password)
             throw createError({ statusCode: 403 });
-        const match = /^\/wopi\/([0-9a-f-]{36})\/([0-9A-F]+)\/files\/([0-9a-f-]{36})$/.exec(source.pathname);
-        if (!match) throw createError({ statusCode: 403 });
-        const authorization = await fetch(new URL('/frame-authorize', config.backendUrl), {
+        if (!/^\/wopi\/files\/[a-f0-9]{32}$/.test(source.pathname)) throw createError({ statusCode: 403 });
+        const authorization = await fetch(new URL('/v1/collaboration/frames/authorize', config.collaborationUrl), {
             method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accessToken: credentials[0], scope: {
-                workspace: match[1], branch: match[2], file: match[3]
-            } }), signal: AbortSignal.timeout(15000)
+            body: JSON.stringify({ accessToken: credentials[0], wopiSource: source.href }),
+            signal: AbortSignal.timeout(15000)
         });
         if (!authorization.ok) throw createError({ statusCode: 403 });
         const result: unknown = await authorization.json();

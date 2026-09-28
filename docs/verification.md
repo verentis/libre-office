@@ -1,5 +1,103 @@
 # Verification and handoff evidence
 
+## Platform-owned cutover — 2026-09-27
+
+The historical evidence below describes the removed Office-owned WOPI/synthetic
+architecture and **does not validate the platform-owned cutover**.
+
+Verified after removing all Office backend/WOPI source and project files:
+
+| Command / scope | Observed result |
+| --- | --- |
+| SDK `npm test && npm run typecheck && npm run build` | 84 tests passed; types and ESM/CJS/declaration builds passed |
+| Workspace app-host, registry, WOPI bridge and continuation tests; `npm run typecheck` | 32 tests passed; typecheck passed |
+| Office `npm run check` | Typecheck, 23 unit tests, local/production manifest validation and unsigned packaging, deployment rendering and 5 deployment tests passed |
+| Office `npm run check:framing` | Production wrapper build and 1 built HTTP framing integration test passed |
+| Office `npm run test:browser-boundaries` | 7 Chromium tests passed: nested-ancestor CSP, save receipt gating, nonsecret Save As/continuation, revoked submission, failure recovery, wrong-target rejection and target expiry |
+| Office and SDK `git diff --check` | Passed |
+
+The framing tests use mock upstream authorization/editor resources; they prove
+wrapper boundaries, not real CODE editing. The browser maps the actual nested
+Collaboration response, uses only explicit approved WOPI installation selection,
+and preserves exact generation/correlation receipts across later coauthor writes.
+
+Real warm `app-office` open/edit/save/reopen/coauthor/revoke execution remains
+required against changed Collaboration and hosting assets. No live runtime
+success, deployment, or Software Factory verification is claimed here.
+
+### Save-confirmation diagnostic — 2026-09-27 15:49 warm trace
+
+The real CODE trace contains `Received Host_PostmessageReady.` and the wrapper's
+save acknowledgement. All 41 authenticated status responses were `ready` with
+`receipt: null`; all three successful checkpoint requests recorded generation 1.
+The wrapper therefore correctly withheld durable confirmation.
+
+The pinned CODE source accepts the current `Action_Save` flags and forwards
+`ExtendedData` through its save command:
+[Map.WOPI.js](https://github.com/CollaboraOnline/online.mirror/blob/825c9caa93da8651971522ba82a80fa0777539c0/browser/src/map/handler/Map.WOPI.js#L695-L703).
+The focused built-wrapper Chromium regression requires that handshake and wire
+shape, then proves CODE acknowledgement plus `Modified=false` cannot clear dirty
+until a matching platform receipt arrives. Ordinary save and Save As tests both
+passed; all 9 boundary unit tests passed. These tests use mock CODE/platform
+resources and do not claim live persistence success. No runtime production
+code or confirmation security rule was changed for this diagnostic.
+
+### Save As HTML interaction
+
+The wrapper now handles trusted CODE `UI_SaveAs` with an accessible HTML filename
+form. Local checks passed: 11 boundary unit tests, Nuxt typecheck and production
+build, and the 7 Chromium boundary tests above. The browser tests exercise the
+built wrapper against mock CODE/platform resources, including spoof rejection,
+cancel without a command, invalid path rejection, exact `Filename`/`Notify`
+fields, revoked submission, failed-operation recovery, and retained edits while
+waiting for authoritative continuation. They do not claim real CODE acceptance.
+
+The separate platform `app-office-operations` scenario uses the actual HTML form;
+its 4 local contract checks, harness typecheck and test discovery passed.
+The parent owns loading the updated wrapper and running the warm scenario after
+the core/restart scenario finishes. No warm execution or service restart was
+performed for this UI change.
+
+### Nonsecret continuation across signing-key rotation
+
+Workspace now adopts `/derived`'s exact persisted target control IDs directly.
+The SDK returns only document metadata and target `accessTokenTtl`; no public
+target launch or token reconstruction occurs. Office retains the initial form
+and CODE iframe/token while separately updating active document metadata.
+
+Verified locally: SDK 84 tests/typecheck/build; workspace admission/continuation
+21 tests and typecheck; Office 16 boundary/configuration tests, typecheck/build
+and 7 Chromium tests. The recovery-denial mock now succeeds without touching a
+reconstruction callback. Malformed, expired, credential-bearing and wrong-scope
+continuations fail closed; Chromium verifies the target deadline independently
+of the retained source launch and preserves later edits through rebinding.
+The vendor archive is `verentis-sdk-0.2.0-b72fdeb675b6.tgz`.
+
+These are local boundary checks, not a new real-key-rotation or warm acceptance
+claim. The parent owns the backend expiry DTO field and warm execution.
+
+### Real Save As readiness diagnosis — 2026-09-27
+
+Authorized `app-office-operations` runs on warm coordinator `1743304` reproduced
+a post-rename reload race: CODE received the correct trusted `Action_SaveAs`
+while `_appLoaded` was false and sent no `saveas` socket command. The wrapper now
+tracks `Frame_Ready`, permits filename entry while loading, and gates dispatch
+on CODE's supported `Get_Views_Resp` readiness response.
+
+The final real run passed outcomes 1-4. At `2026-09-27T18:26:15.728Z`, CODE received
+`Action_SaveAs` with the expected filename, `Notify=true`, `_appLoaded=true` and
+`UserCanNotWriteRelative=false`; its actual `saveas` socket command followed at
+`18:26:15.729Z`. CODE then reported `storage / savefailed` from `18:26:28.677Z`.
+All observed authenticated `/derived` responses remained 204. Outcomes 5-6
+therefore remain unverified pending the parent's storage investigation.
+
+Sanitized evidence is in the scenario's `office-operation-categories.json`;
+the pre-fix summary is `outcomes/save-as-readiness-before.json`. No trace/video,
+credentials, full messages or token-bearing URLs were recorded. No backend or
+stack configuration was changed, and no services were restarted.
+
+## Historical evidence (superseded architecture)
+
 Executed locally on **2026-09-23**, Linux amd64, Node 24.14.0, .NET SDK 10.0.111,
 Docker Engine 29.5.3. Baseline Office commit:
 `a49ccce0bf3bbc1e28bd64783d0aa8174f57e794`.

@@ -1,126 +1,96 @@
-# Verentis Office — local development preview
+# Libre Office
 
-Nuxt/Vue wrapper and .NET 10 WOPI backend connecting real Verentis files to
-self-hosted Collabora CODE. The local preview uses installation-bound backend
-delegation and conditional platform saves. It registers 56 CODE-supported file
-extensions; view-only formats remain read-only. See
-[live setup, supported formats and limitations](docs/live-local-setup.md).
-The base manifest is disabled unless an environment overlay is selected.
-The `production` overlay targets `https://office.apps.verentis.dev` and binds
-the package to its registered publisher backend client; it includes the same
-supported formats as the local preview. The existing workspace
-`publish-all --env production` command selects this overlay. It still requires
-the platform's hosted-service gate and explicit workspace consent; publishing
-a package does not establish successful live document editing.
-The separate sprint AKS workload deployment is documented in
-[operations](docs/operations.md#sprint-aks-deployment).
-The standalone synthetic harness is separate from the live Aspire integration.
+Nuxt/Vue editor wrapper and pinned self-hosted Collabora CODE. The platform's
+Collaboration service owns all WOPI admission, scoped credentials, locks and
+durable saves; Office is not a file-storage or OAuth backend.
 
-## Run with local Aspire
+## Signed installation
 
-Check out `office` beside `platform`, then run `npm ci` in Office. Set up the
-platform's shared mkcert certificate using `platform/scripts/setup-certs.sh`
-(this explicitly installs local CA trust). If the trusted leaf/key already exist,
-`platform/scripts/setup-certs.sh --export-ca-only` exports only the public root
-without changing system/browser trust.
+`manifests/office.app.yaml` declares WOPI capabilities, supported document formats,
+wrapper/operator origins and session/file limits. Local and production overlays
+select their corresponding origins. Publish a signed package and approve its
+exact document-processing consent candidate before opening a workspace file.
+Unsigned packages produced by offline checks cannot authorize a live launch.
 
-Normal platform startup starts the Office Nuxt dev server, live WOPI backend
-and digest-pinned CODE automatically:
+No Office OAuth client ID/secret, private signing key or storage credentials are
+needed. Third-party WOPI applications use the same installation/launch contract.
+Normal applications accessing workspace APIs continue to require normal OAuth.
 
-```sh
-# From platform/
-dotnet run --project "src/0 - Aspire/Verentis.AppHost"
-```
+The public package identity is `verentis/libre-office`, displayed as **Libre
+Office** in base, local and production packages. This is a new Marketplace
+identity, not a migration of existing `verentis/office` installations. Publish,
+install and approve consent for the new signed package explicitly.
 
-For a new hosted installation, register the `local` publisher service for
-`https://office.localtest.me`, save its client ID and one-time secret in
-**AppHost user-secrets**, then reload AppHost. A signed Office package bound to
-that exact service and explicit workspace-admin consent are also required;
-publisher-owned workspaces are not exempt. Follow the
-[copy-paste local onboarding and secret setup](docs/live-local-setup.md#publisher-hosted-office-in-local-aspire-new-installations)
-before opening a supported file. The `npm run check` packages are **unsigned**
-and are not hosted-installation artifacts. The wrapper runs at **https://office.localtest.me**;
-editor and callbacks use
-`https://office-code.localtest.me` and `https://office-wopi.localtest.me`.
-All three use the shared wildcard certificate; CODE verifies callback TLS.
-Missing checkout, image lock or certificate files fail startup with setup guidance.
-Publish and `ASPIRE_TEST_MODE` exclude Office resources. See the
-[setup guide](docs/live-local-setup.md) for the signed-package and credential
-requirements. The older account-owned setup helper documents a different,
-explicit legacy mode; do not use it for a new hosted installation.
+## Local development
 
-To validate Office without starting unrelated platform services, use
-`dotnet run --project utilities/local-office` from platform instead. Do not run
-both hosts together: they share port 443 and the live coordination directory.
-The focused host still needs a running platform API and backend configuration.
-See [operations](docs/operations.md) for topology and verification commands.
-
-## Run standalone Compose development
-
-Prerequisites: Node 24, npm, .NET 10, Docker Engine with Compose, Python 3 for
-fixture generation/content assertions. No cloud credentials are needed.
+The repository is [verentis/libre-office](https://github.com/verentis/libre-office).
+Keep the checkout directory named `office` alongside `sdk` and `platform`:
 
 ```sh
+git clone https://github.com/verentis/libre-office.git office
+cd office
 npm ci
-npm run check
-dotnet test
-docker compose -f dev/compose.yaml up --build -d
-node scripts/wait-stack.mjs
 ```
 
-Visit **https://office.localhost:8443** in a dedicated local browser profile.
-Trust the development CA as described in [operations](docs/operations.md).
-Open an original fixture, edit, request save, then reopen its synthetic ID in a
-new tab to confirm persistence. Nothing is persisted to Verentis.
+The internal `@verentis/office-editor` workspace, AppHost paths, wrapper/CODE
+workload names and public DNS origins are unchanged.
+Use the platform Aspire host with its documented isolated dependencies and
+trusted development certificates. Office runs at `https://office.localtest.me`,
+CODE at `https://office-code.localtest.me`, and WOPI callbacks target the platform
+gateway. The wrapper's server uses `NUXT_COLLABORATION_URL`, not an Office backend.
+Do not start multiple hosts against the same ports/resources.
 
-**Do not expose this stack, put real documents in it, or use its test identity
-as authentication.** It binds loopback, uses local TLS and relaxes certificate
-verification only inside the legacy standalone Compose stack, not Aspire.
-Use the `compose` manifest overlay for this URL; `local` now targets Aspire.
+Install the signed local package with consent, upload a supported document and
+open it through the workspace. Direct navigation to the public wrapper is denied
+without its platform-issued embed ticket. A hidden form POST transfers only the
+scoped WOPI token to the trusted CODE action.
 
-## Verify real browser round trips
+## Verification
 
 ```sh
-mkdir -p artifacts
-PLAYWRIGHT_BROWSERS_PATH="$PWD/artifacts/browsers" TMPDIR="$PWD/artifacts" npx playwright install chromium
+npx playwright install chromium --only-shell
+npm run check
+npm run check:framing
+# With the platform warm stack already started:
 npm run test:integration
 ```
 
-On supported Linux CI, add `--with-deps` to install browser OS dependencies.
-Tests use the real pinned CODE container, not a document-editor mock. Each
-DOCX/ODT/XLSX/ODS/PPTX/ODP test types a marker, checks the durable synthetic ZIP
-content, and freshly reopens it for a second edit/save that must preserve the
-first marker. Results: `artifacts/browser-results.json`;
-the handoff summary records passed/blocked cases separately.
-See the checked-in [verification evidence](docs/verification.md) for exact
-commands, per-format results and remaining release gates.
-Browser traces are disabled to avoid capturing session credentials.
+`test:integration` invokes `platform/tests/playwright`'s warm `app-office`
+scenario. It must exercise real CODE open/edit/save/reopen, simultaneous sessions
+and revocation against changed Collaboration services/assets. Unit tests and
+mock framing checks are not end-to-end evidence. Warm resources must be rebuilt
+or restarted after source, manifest or vendored SDK changes.
 
-`npm run check` runs types, boundary unit tests, released CLI 0.2.18 validation
-and unsigned packing, deployment rendering and immutable-reference checks,
-including the offline sprint workload contract.
-`dotnet test` covers WOPI, SQLite CAS/locks/expiry/restart and fail-closed admission.
-`npm run fixtures` regenerates the six original synthetic documents.
-Stop with `docker compose -f dev/compose.yaml down` (preserves the database).
+`check:package` validates and packs unsigned offline artifacts only; it does not
+publish, install or deploy them. It inspects base/local/production archives for
+the Libre Office identity and unchanged WOPI contract. The vendored SDK archive is integrity-pinned in
+the lockfile. `npm run fixtures` regenerates document fixtures, not a WOPI host.
 
 ## Layout
 
-- `apps/editor` — pinned local SDK bridge, borderless editor and independent CODE iframe boundary.
-- `services/backend` — installation-bound live sessions and durable conditional-save coordination.
-- `services/wopi` — scoped WOPI protocol and configured discovery.
-- `tests/harness`, `tests/fixtures`, `tests/protocol`, `tests/browser` — test-only state and evidence.
-- `manifests` — one disabled package root; local and production overlays enable supported formats, with production bound to the registered hosted backend.
-- `deploy` — pinned image builds and reusable regional rendering.
-- `k8s` — sprint-only live workload template; no marketplace package publication.
-- `.github/workflows` — secret-free checks, manual unsigned release preparation,
-  and an OIDC-authenticated `feat/**`-push sprint AKS deployment using a protected
-  GitHub environment (not UAT/production).
+- `apps/editor` — trusted-parent bridge, dirty/save UX and CODE framing proxy.
+- `manifests` — signed-package declarations and environment origins.
+- `tests` — browser boundaries, package/deployment contracts and framing checks.
+- `deploy`, `k8s` — wrapper/CODE build and workload topology.
+- `vendor/sdk` — source-built SDK package used by the wrapper.
+
+## Deployment
+
+The sprint workflow is restricted to `feat/**` branches in
+`verentis/libre-office`, including manual dispatch, and retains the `sprint`
+environment approval gate. Set the nonsecret environment variable
+`PLATFORM_ORIGIN` to the exact sprint HTTPS API origin; Azure deployment
+credentials remain secrets. Store one durable RSA private PEM as the
+environment secret `CODE_PROOF_KEY`; deployment creates a missing Kubernetes
+proof Secret, preserves the same key and rejects accidental rotation. Never
+generate a new key per rollout. See the [operator prerequisites](docs/operations.md#sprint-aks-deployment):
+the operator retired the sprint `office-wopi` deployment/service/ingress and
+provisioned `office-code-proof` on 2026-09-28. Existing wrapper/CODE workloads
+were not rolled out; the next CODE deployment must mount the key and verify
+signed callbacks. The private key belongs only to CODE, not the wrapper or
+platform workloads. Package checks do not deploy these changes.
 
 See [architecture](docs/architecture.md), [API](docs/api.md),
-[operations/recovery](docs/operations.md), [security](SECURITY.md),
-[contributing](CONTRIBUTING.md) and [third-party inventory](THIRD-PARTY-NOTICES.md).
-The existing Apache-2.0 license is unchanged. This repository does not provision
-cloud identities, permissions, secrets or storage, and does not publish packages.
-Do not deploy until the Platform embed/host registry contract, the Office-specific
-backend credentials and persistent state, and the sprint rollout prerequisites
-described in operations have been approved.
+[operations](docs/operations.md), [verification](docs/verification.md) and
+[security](SECURITY.md). Apache-2.0 licensing is unchanged. This repository does
+not independently establish successful runtime integration or deploy resources.
