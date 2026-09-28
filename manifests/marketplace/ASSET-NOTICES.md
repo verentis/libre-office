@@ -16,3 +16,33 @@ The three files in samples/ are original fictional documents; no upstream templa
 The existing workspace host was not changed. Its interactive sign-in prevented an unattended full workspace capture, so these images show only the actual CODE editing interface, not the Verentis wrapper or workspace. They do not establish platform launch, consent, collaboration or durable-save correctness.
 
 Upstream software and embedded marks retain their existing component licenses and trademark restrictions. See ../../THIRD-PARTY-NOTICES.md; this inventory is not a claim of completed legal clearance.
+
+## Official logo replacement — blocked on trademark-use clarification
+
+The requested authentic LibreOffice logo has not been incorporated. The current
+`logo.svg` is custom artwork and does not satisfy that requirement.
+
+TDF supplies an [official external-use logo](https://wiki.documentfoundation.org/File:LibreOffice_external_logo.svg)
+without the reserved “The Document Foundation” subline. Its file-page
+[license declaration](https://wiki.documentfoundation.org/Template:CC-BY-SA-3.0-LGPLv3p-MPL)
+offers CC BY-SA 3.0 Unported, LGPL v3 or later, or MPL 1.1. These are artwork
+copyright licenses, separate from the editor software's licenses and trademark
+permission; a copyright license alone does not clear this listing's use.
+
+The [Logo Policy](https://wiki.documentfoundation.org/TDF/Policies/Logo_Policy)
+and [Trademark Policy](https://wiki.documentfoundation.org/TDF/Policies/Trademark_Policy)
+permit factual component identification and clearly distinguished “based on”
+references. The trademark policy also expressly flags confusing app-store
+application names as non-permitted. This package is currently named “Libre Office”
+but supplies a Verentis wrapper around Collabora, not a TDF-produced application.
+The published terms therefore do not establish unambiguous permission for the
+proposed package-icon/name combination.
+
+Obtain clarification or authorization from `legal@documentfoundation.org` for
+this presentation before using the mark. Alternatively, a clearly distinguished
+listing identity would require a separately approved naming change. Do not assume
+that a disclaimer alone resolves the policy restriction. Keep the Collabora-based
+description and avoid any claim of TDF endorsement. Any subsequently authorized
+asset must retain its complete mark, trademark symbol, colors and aspect ratio
+with neutral padding, and carry its copyright attribution/license in the packaged
+README. No official asset was copied into this package.
