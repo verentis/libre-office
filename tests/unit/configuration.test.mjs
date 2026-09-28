@@ -36,6 +36,23 @@ test('checks and release preparation remain secret-free and do not publish/impor
         }
     }
 });
+
+test('CI installs Chromium before running browser-based framing checks', () => {
+    for (const file of ['checks.yml', 'deploy-sprint.yml']) {
+        const workflow = parse(readFileSync(`.github/workflows/${file}`, 'utf8'));
+        for (const job of Object.values(workflow.jobs)) {
+            const framing = job.steps.findIndex(step => step.run?.includes('npm run check:framing'));
+            assert.ok(framing >= 0, `${file}: framing checks must remain enabled`);
+            const dependencies = job.steps.findIndex(step => step.run?.startsWith('npm ci'));
+            const browser = job.steps.findIndex(step =>
+                step.run === 'npx --no-install playwright install --with-deps chromium');
+            assert.ok(dependencies >= 0 && browser > dependencies && browser < framing,
+                `${file}: install the locked Playwright browser and system dependencies before framing checks`);
+        }
+    }
+    assert.equal(parse(readFileSync('.github/workflows/checks.yml', 'utf8')).name, 'Tests');
+});
+
 test('Office contains no WOPI persistence or backend project authority', () => {
     assert.equal(existsSync('services/backend/Office.Backend.csproj'), false);
     assert.equal(existsSync('services/wopi/Office.Wopi.csproj'), false);

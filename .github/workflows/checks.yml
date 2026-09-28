@@ -1,4 +1,4 @@
-name: Secret-free checks
+name: Tests
 on:
   pull_request:
   push:
@@ -21,6 +21,8 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Install Chromium for framing tests
+        run: npx --no-install playwright install --with-deps chromium
       - run: npm run check && npm run check:framing
       - run: node scripts/verify-code-lock.mjs
       - run: npm run build

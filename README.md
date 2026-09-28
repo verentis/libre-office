@@ -47,6 +47,10 @@ scoped WOPI token to the trusted CODE action.
 
 ## Verification
 
+The GitHub **Tests** workflow checks packages, deployment configuration, framing
+and the wrapper image without deployment credentials. Both it and the sprint
+deployment install Chromium and its system dependencies before framing tests.
+
 ```sh
 npx playwright install chromium --only-shell
 npm run check
