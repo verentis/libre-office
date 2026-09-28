@@ -1,8 +1,9 @@
 # Local SDK package
 
-`verentis-sdk-0.2.0.tgz` is the explicit, unreleased SDK artifact used by this
+`verentis-sdk-0.2.0-<content-hash>.tgz` is the explicit, unreleased SDK artifact used by this
 Office integration. Include it with the source change set so a standalone
 checkout, CI and the editor Dockerfile can resolve the same package.
+Its content-derived filename avoids stale npm file-package caching.
 `package-lock.json` pins its SHA-512 integrity. Its MIT license is included
 inside the archive.
 

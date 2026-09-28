@@ -1,26 +1,36 @@
 <script setup lang="ts">
 import { Bridge, type HeaderActionRegistration } from '@verentis/sdk';
-import { childMessage, isTrustedParentMessage, isPotentialParentMessage, parseParentOrigins, nextDirty, validateLaunch, validateLiveLaunch, saveConfirmed,
-    type Launch, type LiveLaunch, type SaveCheckpoint, type SaveStatus } from '../shared/boundaries.mjs';
+import { exactHttpsOrigin } from '../shared/frame-policy.mjs';
+import { childMessage, isPotentialParentMessage, nextDirty, validateLiveLaunch, validateLiveContinuation,
+    isDerivedSaveResponse, editorReloadStarted, saveAsDraft, saveAsCommand, saveConfirmed, sessionStatusProblem,
+    type LiveLaunch, type LiveDocument, type SaveCheckpoint } from '../shared/boundaries.mjs';
 
 const config = useRuntimeConfig().public;
-const synthetic = config.syntheticOnly === true || String(config.syntheticOnly) === 'true';
 const status = ref('Loading Office…');
 const dirty = ref(false);
-const format = ref('docx');
-const fileId = ref('');
-const launch = ref<Launch | LiveLaunch | null>(null);
+const launch = ref<LiveLaunch | null>(null);
+const documentState = ref<LiveDocument | null>(null);
 const frame = ref<HTMLIFrameElement | null>(null);
 const form = ref<HTMLFormElement | null>(null);
-const busy = ref(false);
 const ready = ref(false);
 const expired = ref(false);
-const launchFailed = ref(false);
 const saving = ref(false);
+const continuationRequired = ref(false);
+const continuing = ref(false);
+const saveAsOpen = ref(false);
+const saveAsPending = ref(false);
+const copyName = ref('');
+const copyFormat = ref('');
+const copyError = ref('');
+const copyInput = ref<HTMLInputElement | null>(null);
+const statusUnavailable = ref(true);
+const statusReadOnly = ref(false);
 const needsAttention = ref(false);
 const showDetails = ref(false);
-const canSave = computed(() => ready.value && !expired.value && !saving.value &&
-    !(launch.value?.syntheticOnly === false && launch.value.readOnly));
+const saveAsAuthorized = computed(() => !expired.value && !statusUnavailable.value && !saving.value &&
+    !saveAsPending.value && !continuationRequired.value && !continuing.value);
+const canSaveAs = computed(() => ready.value && saveAsAuthorized.value);
+const canSave = computed(() => canSaveAs.value && !saveAsOpen.value && !documentState.value?.readOnly && !statusReadOnly.value);
 let bridge: Bridge | undefined;
 let saveAction: HeaderActionRegistration | undefined;
 let hostReady = false;
@@ -28,14 +38,17 @@ let timeout: ReturnType<typeof setTimeout> | undefined;
 let handshakeTimeout: ReturnType<typeof setTimeout> | undefined;
 let expiry: ReturnType<typeof setTimeout> | undefined;
 let saveTimeout: ReturnType<typeof setTimeout> | undefined;
+let saveAsTimeout: ReturnType<typeof setTimeout> | undefined;
 let statusTimer: ReturnType<typeof setTimeout> | undefined;
 let editGeneration = 0;
 let requestedGeneration = 0;
 let requestedSave: SaveCheckpoint | null = null;
+let saveAttempt = 0;
+let statusPolling = false;
+let queuedSaveAs: ReturnType<typeof saveAsCommand> | null = null;
 let editorModified = false;
 let destroyed = false;
 let parentOrigin = '';
-let parentOrigins: string[] = [];
 
 function reportProblem(message: string) {
     needsAttention.value = true;
@@ -51,9 +64,7 @@ function guardParent(event: MessageEvent) {
     const type = event.data?.type;
     if (type === undefined) return;
     if (typeof type !== 'string' || (type.startsWith('verentis:') &&
-        (!(synthetic
-            ? isTrustedParentMessage(event, window.parent, parentOrigins, parentOrigin)
-            : isPotentialParentMessage(event, window.parent, parentOrigin)) ||
+        (!isPotentialParentMessage(event, window.parent, parentOrigin) ||
             (type === 'verentis:init' && typeof event.data.context?.workspace?.id !== 'string')))) {
         event.stopImmediatePropagation();
     } else if (type === 'verentis:init') {
@@ -63,6 +74,50 @@ function guardParent(event: MessageEvent) {
 function onChild(event: MessageEvent) {
     const message = childMessage(event, frame.value?.contentWindow ?? null, config.editorOrigin);
     if (!message) return;
+    if (editorReloadStarted(message)) {
+        ready.value = false;
+        saving.value = false;
+        requestedSave = null;
+        saveAttempt++;
+        clearTimeout(saveTimeout);
+        if (!expired.value) status.value = 'CODE is reloading the document. Wait for it to finish; preserve unverified edits.';
+        waitForEditorLoad();
+        return;
+    }
+    if (message.MessageId === 'UI_SaveAs') {
+        void openSaveAs(message.Values?.format);
+        return;
+    }
+    if (message.MessageId === 'Get_Views_Resp' && queuedSaveAs) {
+        ready.value = true;
+        clearTimeout(timeout);
+        const command = queuedSaveAs;
+        queuedSaveAs = null;
+        if (expired.value || statusUnavailable.value || continuationRequired.value || !frame.value?.contentWindow) {
+            saveAsPending.value = false;
+            clearTimeout(saveAsTimeout);
+            reportProblem('Save As was not sent because authorization changed. Preserve edits and retry when ready.');
+            return;
+        }
+        status.value = 'Save As requested. Keep this editor open while the workspace verifies the target.';
+        frame.value.contentWindow.postMessage(JSON.stringify(command), config.editorOrigin);
+        return;
+    }
+    if (isDerivedSaveResponse(message)) {
+        queuedSaveAs = null;
+        saveAsOpen.value = false;
+        continuationRequired.value = true;
+        statusUnavailable.value = true;
+        dirty.value = true;
+        saving.value = false;
+        requestedSave = null;
+        saveAttempt++;
+        clearTimeout(saveTimeout);
+        if (hostReady) bridge?.setDirty(true);
+        status.value = 'Save As reported by CODE. Verifying the committed target with the workspace…';
+        void pollStatus();
+        return;
+    }
     if (message.MessageId === 'Doc_ModifiedStatus' && typeof message.Values?.Modified === 'boolean')
         editorModified = message.Values.Modified;
     if (message.MessageId === 'Doc_ModifiedStatus' && message.Values?.Modified === true) editGeneration++;
@@ -70,20 +125,26 @@ function onChild(event: MessageEvent) {
     if (hostReady) bridge?.setDirty(dirty.value);
     if (message.MessageId === 'App_LoadingStatus' && message.Values?.Status === 'Document_Loaded') {
         ready.value = true;
-        launchFailed.value = false;
         needsAttention.value = false;
         clearTimeout(timeout);
-        if (!expired.value) status.value = synthetic
-            ? 'Synthetic editor loaded. Saving is not yet independently verified.'
-            : launch.value?.syntheticOnly === false && launch.value.readOnly ? 'Verentis file opened read-only.' : 'Verentis file opened. Saves use conditional platform writes.';
+        if (!expired.value && !continuationRequired.value) status.value = documentState.value?.readOnly
+            ? 'Verentis file opened read-only.' : 'Verentis file opened. Saves use conditional platform writes.';
         frame.value?.contentWindow?.postMessage(JSON.stringify({ MessageId: 'Host_PostmessageReady', SendTime: Date.now(), Values: {} }), config.editorOrigin);
+        if (queuedSaveAs) probeSaveAsReadiness();
     }
     if (message.MessageId === 'Action_Save_Resp') {
-        if (synthetic) {
-            clearTimeout(saveTimeout);
-            saving.value = false;
+        if (saveAsPending.value) {
+            if (message.Values?.success !== true) {
+                saveAsPending.value = false;
+                saveAttempt++;
+                statusUnavailable.value = true;
+                clearTimeout(saveAsTimeout);
+                reportProblem('Save As was not acknowledged. Preserve edits; workspace status must be rechecked before retrying.');
+                void pollStatus();
+            }
+            return;
         }
-        if (!expired.value && (dirty.value || synthetic)) status.value = message.Values?.success === true
+        if (!expired.value && dirty.value) status.value = message.Values?.success === true
             ? `CODE acknowledged save request for edit generation ${requestedGeneration}. Awaiting durable status; keep unverified edits open.`
             : 'Save not acknowledged. Preserve edits; check session expiry or revision conflict before reopening.';
         if (message.Values?.success !== true) needsAttention.value = true;
@@ -98,10 +159,10 @@ onMounted(async () => {
     window.addEventListener('beforeunload', beforeUnload);
     if (window.parent !== window) {
         try {
-            if (synthetic) parentOrigins = parseParentOrigins(config.parentOrigins || config.parentOrigin);
             // The capture-phase guard authenticates and pins init before the
             // SDK sees it, including hosts with a no-referrer policy.
-            bridge = new Bridge(synthetic && parentOrigins.length === 1 ? parentOrigins[0] : undefined);
+            parentOrigin = exactHttpsOrigin(document.querySelector('meta[name="verentis-parent-origin"]')?.getAttribute('content') ?? '');
+            bridge = new Bridge(parentOrigin);
             bridge.sendReady([]);
             const initialized = await Promise.race([
                 bridge.waitForInit(),
@@ -111,29 +172,25 @@ onMounted(async () => {
             hostReady = true;
             bridge.setTitle('Office');
             bridge.setDirty(dirty.value);
-            if (!synthetic) {
-                saveAction = bridge.registerAction({
-                    id: 'office.save', label: 'Save', icon: 'lucide:save', scopes: [], enabled: false,
-                }, requestSave);
-                bridge.registerAction({
-                    id: 'office.status', label: 'Office status', icon: 'lucide:info', scopes: [],
-                }, () => { showDetails.value = !showDetails.value; });
-                status.value = 'Authorizing the installed backend for this file…';
-                const credential = await bridge.requestBackendCredential();
-                const response = await $fetch('/api/sessions', {
-                    method: 'POST', body: { ...credential, parentOrigin }
-                });
-                if (destroyed) return;
-                launch.value = validateLiveLaunch(response, config.editorOrigin, config.wopiOrigin, initialized.context);
-                bridge.setTitle(`Office — ${launch.value.name}`);
-                await startEditor();
-                void pollStatus();
-            }
+            saveAction = bridge.registerAction({
+                id: 'office.save', label: 'Save', icon: 'lucide:save', scopes: [], enabled: false,
+            }, requestSave);
+            bridge.registerAction({
+                id: 'office.status', label: 'Office status', icon: 'lucide:info', scopes: [],
+            }, () => { showDetails.value = !showDetails.value; });
+            status.value = 'Authorizing the approved editor for this file…';
+            const response = await bridge.requestWopiLaunch();
+            if (destroyed) return;
+            launch.value = validateLiveLaunch(response, config.editorOrigin, config.wopiOrigin, initialized.context);
+            documentState.value = launch.value;
+            bridge.setTitle(`Office — ${launch.value.name}`);
+            await startEditor();
+            void pollStatus();
         } catch {
-            reportProblem('Office could not authorize this file. Check browser login, backend registration, installation consent/pairing, branch and trusted origins.');
+            reportProblem('Office could not authorize this file. Check workspace access, signed installation consent, branch and trusted origins.');
         }
     } else {
-        status.value = synthetic ? 'Synthetic-only harness. No Verentis files or tokens are used.' : 'Open an existing file through its authorized Verentis workspace.';
+        status.value = 'Open an existing file through its authorized Verentis workspace.';
     }
 });
 onBeforeUnmount(() => {
@@ -142,87 +199,212 @@ onBeforeUnmount(() => {
     clearTimeout(handshakeTimeout);
     clearTimeout(expiry);
     clearTimeout(saveTimeout);
+    clearTimeout(saveAsTimeout);
     clearTimeout(statusTimer);
     bridge?.destroy();
     window.removeEventListener('message', guardParent, true);
     window.removeEventListener('message', onChild);
     window.removeEventListener('beforeunload', beforeUnload);
 });
-async function openSynthetic() {
-    if (launch.value) return;
-    busy.value = true;
-    try {
-        const response = await $fetch('/api/test/sessions', { method: 'POST', body: { format: format.value, fileId: fileId.value || null } });
-        launch.value = validateLaunch(response, config.editorOrigin, config.wopiOrigin);
-        fileId.value = launch.value.fileId;
-        await startEditor();
-    } catch {
-        status.value = 'Launch rejected or dependency unavailable. Check the fixture, configured origins and CODE discovery.';
-    } finally {
-        busy.value = false;
-    }
-}
 async function startEditor() {
     if (!launch.value) return;
     ready.value = false;
     expired.value = false;
-    launchFailed.value = false;
+    statusUnavailable.value = true;
     needsAttention.value = false;
     status.value = 'Loading CODE editor…';
     await nextTick();
     form.value?.submit();
+    waitForEditorLoad();
+    scheduleExpiry();
+}
+function waitForEditorLoad() {
     clearTimeout(timeout);
     timeout = setTimeout(() => {
         if (!ready.value) {
-            launchFailed.value = true;
             reportProblem('Editor did not report ready. Check CODE/TLS/discovery; preserve edits before resetting.');
         }
     }, 60000);
+}
+function scheduleExpiry() {
     clearTimeout(expiry);
-    expiry = setTimeout(() => {
+    if (destroyed || !documentState.value) return;
+    const remaining = documentState.value.accessTokenTtl - Date.now();
+    if (remaining <= 0) {
         expired.value = true;
+        queuedSaveAs = null;
+        clearTimeout(saveAsTimeout);
         reportProblem('The session reached its absolute expiry. Preserve edits and reopen through the workspace.');
-    }, Math.max(0, launch.value.accessTokenTtl - Date.now()));
+        return;
+    }
+    expiry = setTimeout(scheduleExpiry, Math.min(remaining, 2_147_483_647));
 }
 async function pollStatus() {
-    const current = launch.value;
-    if (!current || current.syntheticOnly || expired.value) return;
+    const current = documentState.value;
+    if (!current || !bridge || expired.value || statusPolling) return;
+    statusPolling = true;
+    const attempt = saveAttempt;
+    clearTimeout(statusTimer);
     try {
-        const result = await $fetch<SaveStatus>(
-            `/api/sessions/${current.sessionId}/status`,
-            { headers: { Authorization: `Bearer ${current.statusCredential}` } });
-        if (launch.value !== current) return;
-        if (result.state !== 'ready') {
-            reportProblem('Another revision or unresolved save requires recovery. Preserve edits; no overwrite was forced.');
-        } else if (saveConfirmed(result, requestedSave, editGeneration, editorModified)) {
+        const result = await bridge.getWopiStatus();
+        if (documentState.value !== current || saveAttempt !== attempt) return;
+        if (result.continuationAvailable || continuationRequired.value) {
+            continuationRequired.value = true;
+            await continueDerivedLaunch(current);
+            return;
+        }
+        statusUnavailable.value = result.state !== 'ready';
+        statusReadOnly.value = result.readOnly === true;
+        const problem = sessionStatusProblem(result.state);
+        if (problem) {
+            if (problem.terminal) {
+                expired.value = true;
+                queuedSaveAs = null;
+                saving.value = false;
+                clearTimeout(saveTimeout);
+                clearTimeout(saveAsTimeout);
+            }
+            reportProblem(problem.message);
+        } else if (!saveAsPending.value && saveConfirmed(result, requestedSave, editGeneration, editorModified)) {
             dirty.value = false;
             saving.value = false;
             requestedSave = null;
             clearTimeout(saveTimeout);
             if (hostReady) bridge?.setDirty(false);
             needsAttention.value = false;
-            status.value = `Saved to Verentis. Confirmed revision ${result.revision}.`;
-        } else if (dirty.value && result.sequence > 0) {
+            status.value = `Saved to Verentis. Confirmed revision ${result.receipt!.revision}.`;
+        } else if (statusReadOnly.value && !current.readOnly) {
+            reportProblem('Document access is now read-only. Preserve unverified edits.');
+        } else if (!saveAsPending.value && dirty.value && result.receipt?.revision) {
             // A durable revision alone cannot identify which browser edit event
             // its snapshot contains. Never clear dirty on an unrelated callback.
-            status.value = `Verentis confirmed ${result.sequence} durable save(s). Edit generation ${editGeneration} remains unverified; preserve edits until a fresh reopen confirms them.`;
+            status.value = `Verentis confirmed durable revision ${result.receipt.revision}. Edit generation ${editGeneration} remains unverified; preserve edits until a fresh reopen confirms them.`;
         }
     } catch {
+        statusUnavailable.value = true;
         reportProblem('Live save status or authorization is unavailable. Preserve unverified edits; do not close.');
     } finally {
-        if (!destroyed && launch.value === current && !expired.value) statusTimer = setTimeout(() => void pollStatus(), 3000);
+        statusPolling = false;
+        if (!destroyed && documentState.value && !expired.value) statusTimer = setTimeout(() => void pollStatus(), 3000);
     }
 }
+
+async function continueDerivedLaunch(current: LiveDocument) {
+    if (!bridge || continuing.value) return;
+    continuing.value = true;
+    queuedSaveAs = null;
+    statusUnavailable.value = true;
+    saving.value = false;
+    requestedSave = null;
+    saveAttempt++;
+    clearTimeout(saveTimeout);
+    try {
+        const response = await bridge.requestWopiContinuation();
+        if (destroyed || documentState.value !== current) return;
+        const next = validateLiveContinuation(response, current);
+        documentState.value = next;
+        saveAsOpen.value = false;
+        saveAsPending.value = false;
+        clearTimeout(saveAsTimeout);
+        continuationRequired.value = false;
+        expired.value = false;
+        statusReadOnly.value = next.readOnly;
+        dirty.value = true;
+        bridge.setDirty(true);
+        bridge.setTitle(`Office — ${next.name}`);
+        scheduleExpiry();
+        status.value = 'Save As target authorized. Save to confirm any unverified edits.';
+    } catch {
+        reportProblem('Save As continuation is unavailable. Preserve edits; controls remain blocked until the target is verified.');
+    } finally {
+        continuing.value = false;
+    }
+}
+
+async function openSaveAs(format: unknown) {
+    if (saveAsOpen.value) return;
+    if (!saveAsAuthorized.value || !documentState.value) {
+        reportProblem('Save As is unavailable while authorization, a save or continuation is pending. Preserve edits and retry when ready.');
+        return;
+    }
+    try {
+        const draft = saveAsDraft(documentState.value.name, documentState.value.format, format);
+        copyName.value = draft.filename;
+        copyFormat.value = draft.format;
+        copyError.value = '';
+        saveAsOpen.value = true;
+        await nextTick();
+        copyInput.value?.focus();
+        copyInput.value?.select();
+    } catch (error) {
+        reportProblem(error instanceof Error ? error.message : 'Save As could not select a supported document format.');
+    }
+}
+
+function cancelSaveAs() {
+    saveAsOpen.value = false;
+    copyError.value = '';
+    frame.value?.focus();
+}
+
+function confirmSaveAs() {
+    if (!canSaveAs.value || !frame.value?.contentWindow) {
+        copyError.value = 'Save As is unavailable. Preserve edits and check live authorization before retrying.';
+        return;
+    }
+    let command;
+    try {
+        command = saveAsCommand(copyName.value, copyFormat.value);
+    } catch (error) {
+        copyError.value = error instanceof Error ? error.message : 'Enter a valid file name.';
+        return;
+    }
+    saveAsOpen.value = false;
+    saveAsPending.value = true;
+    dirty.value = true;
+    requestedSave = null;
+    saveAttempt++;
+    clearTimeout(saveTimeout);
+    if (hostReady) bridge?.setDirty(true);
+    queuedSaveAs = command;
+    status.value = 'Waiting for CODE to finish loading before Save As. Keep unverified edits open.';
+    clearTimeout(saveAsTimeout);
+    saveAsTimeout = setTimeout(() => {
+        if (queuedSaveAs) {
+            queuedSaveAs = null;
+            saveAsPending.value = false;
+            ready.value = false;
+            reportProblem('Save As was not sent because CODE did not report ready. Preserve edits and wait for the document to finish loading.');
+        } else {
+            reportProblem('Save As confirmation is unavailable. Preserve edits; source controls remain blocked until the target is verified.');
+        }
+    }, 60000);
+    probeSaveAsReadiness();
+    frame.value.focus();
+}
+
+function probeSaveAsReadiness() {
+    // CODE ignores document commands while _appLoaded is false. Get_Views is
+    // gated the same way, so its response confirms this editor can accept Save As.
+    frame.value?.contentWindow?.postMessage(JSON.stringify({
+        MessageId: 'Get_Views', SendTime: Date.now(), Values: {},
+    }), config.editorOrigin);
+}
+
 async function requestSave() {
-    if (!ready.value || expired.value || saving.value || launch.value?.syntheticOnly === false && launch.value.readOnly) return;
+    const current = documentState.value;
+    if (!canSave.value || !bridge || !current) return;
     saving.value = true;
+    const attempt = ++saveAttempt;
     requestedGeneration = editGeneration;
-    if (launch.value?.syntheticOnly === false) {
+    if (current) {
         try {
-            requestedSave = await $fetch<SaveCheckpoint>(`/api/sessions/${launch.value.sessionId}/saves`, {
-                method: 'POST', body: { generation: requestedGeneration },
-                headers: { Authorization: `Bearer ${launch.value.statusCredential}` }
-            });
+            const checkpoint = await bridge.requestWopiSave(requestedGeneration);
+            if (destroyed || documentState.value !== current || expired.value || attempt !== saveAttempt) {
+                saving.value = false;
+                return;
+            }
+            requestedSave = checkpoint;
         } catch {
             saving.value = false;
             reportProblem('Cannot establish a durable save checkpoint. Preserve edits and check access or revision conflicts.');
@@ -243,11 +425,9 @@ async function requestSave() {
 }
 async function resetFailedLaunch() {
     if (!window.confirm('Discard this editor, including any unsaved or unverified edits, and reset the launch?')) return;
-    if (launch.value?.syntheticOnly === false) {
+    if (launch.value && bridge) {
         try {
-            await $fetch(`/api/sessions/${launch.value.sessionId}`, {
-                method: 'DELETE', headers: { Authorization: `Bearer ${launch.value.statusCredential}` }
-            });
+            await bridge.closeWopiSession();
         } catch {
             reportProblem('Session outcome is unresolved. Preserve edits before attempting another recovery.');
             return;
@@ -257,12 +437,16 @@ async function resetFailedLaunch() {
     clearTimeout(expiry);
     clearTimeout(saveTimeout);
     clearTimeout(statusTimer);
+    clearTimeout(saveAsTimeout);
     launch.value = null;
+    documentState.value = null;
+    queuedSaveAs = null;
     ready.value = false;
     expired.value = false;
-    launchFailed.value = false;
     saving.value = false;
     requestedSave = null;
+    saveAsOpen.value = false;
+    saveAsPending.value = false;
     needsAttention.value = false;
     dirty.value = false;
     if (hostReady) bridge?.setDirty(false);
@@ -271,25 +455,24 @@ async function resetFailedLaunch() {
 </script>
 
 <template>
-    <main :class="synthetic ? 'synthetic' : 'live'">
-        <header v-if="synthetic"><h1>Verentis Office</h1><strong>Isolated synthetic harness</strong></header>
-        <p role="status" :class="{ 'visually-hidden': !synthetic && ready }">{{ status }}</p>
-        <p v-if="synthetic" class="warning">Only a matching durable platform receipt can confirm a live save. Unrelated acknowledgements never clear dirty warnings.</p>
-        <p v-if="dirty" data-testid="dirty" :class="{ 'visually-hidden': !synthetic }">Unsaved or unverified changes — do not discard this editor.</p>
-        <p v-if="synthetic && expired" role="alert">Session expired. Preserve edits; saves are disabled and authorization is not renewed automatically.</p>
-        <section v-if="synthetic">
-            <h2>Isolated synthetic-file harness</h2>
-            <form @submit.prevent="openSynthetic">
-                <label>Fixture <select v-model="format" :disabled="Boolean(launch)"><option v-for="ext in ['docx', 'odt', 'xlsx', 'ods', 'pptx', 'odp']" :key="ext">{{ ext }}</option></select></label>
-                <label>Existing synthetic file ID (optional) <input v-model="fileId" pattern="[a-f0-9]{32}" :disabled="Boolean(launch)"></label>
-                <button :disabled="busy || Boolean(launch)">Open synthetic file</button>
-                <button v-if="launch" type="button" :disabled="!ready || expired || saving" @click="requestSave">Request save</button>
-                <button v-if="launch && (launchFailed || expired)" type="button" @click="resetFailedLaunch">Discard editor and reset launch</button>
-            </form>
-            <p v-if="launch">Synthetic file: <code data-testid="file-id">{{ launch.fileId }}</code>. Fresh reopen: use this ID in a new tab.</p>
-        </section>
+    <main class="live">
+        <p role="status" :class="{ 'visually-hidden': ready }">{{ status }}</p>
+        <p v-if="dirty" data-testid="dirty" class="visually-hidden">Unsaved or unverified changes — do not discard this editor.</p>
         <template v-if="launch">
-            <aside v-if="!synthetic && (needsAttention || showDetails)" class="notice" :role="needsAttention ? 'alert' : 'region'" aria-label="Office status">
+            <section v-if="saveAsOpen" class="notice" role="dialog" aria-labelledby="office-copy-title" aria-describedby="office-copy-help">
+                <h2 id="office-copy-title">Save As</h2>
+                <p id="office-copy-help">Save a copy alongside this document. Use a .{{ copyFormat }} file name; the workspace verifies the target and your permissions.</p>
+                <form @submit.prevent="confirmSaveAs" @keydown.esc.prevent="cancelSaveAs">
+                    <label for="office-copy-name">File name</label>
+                    <input id="office-copy-name" ref="copyInput" v-model="copyName" required maxlength="255"
+                        :aria-invalid="Boolean(copyError)" :aria-describedby="copyError ? 'office-copy-error' : 'office-copy-help'">
+                    <p v-if="copyError" id="office-copy-error" role="alert">{{ copyError }}</p>
+                    <p v-if="!canSaveAs" role="alert">Save As is unavailable. {{ status }}</p>
+                    <button type="submit" :disabled="!canSaveAs">Confirm Save As</button>
+                    <button type="button" @click="cancelSaveAs">Cancel</button>
+                </form>
+            </section>
+            <aside v-if="!saveAsOpen && (needsAttention || showDetails)" class="notice" :role="needsAttention ? 'alert' : 'region'" aria-label="Office status">
                 <p>{{ status }}</p>
                 <p v-if="dirty">Unsaved or unverified changes — do not discard this editor.</p>
                 <button :disabled="!canSave" @click="requestSave">Request save</button>
@@ -300,7 +483,7 @@ async function resetFailedLaunch() {
                 <input type="hidden" name="access_token" :value="launch.accessToken">
                 <input type="hidden" name="access_token_ttl" :value="launch.accessTokenTtl">
             </form>
-            <iframe ref="frame" name="office-code" :title="synthetic ? 'Synthetic Collabora editor' : 'Verentis Collabora editor'" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="no-referrer" />
+            <iframe ref="frame" name="office-code" title="Verentis Collabora editor" sandbox="allow-scripts allow-same-origin allow-forms allow-downloads" referrerpolicy="no-referrer" />
         </template>
     </main>
 </template>
@@ -311,8 +494,6 @@ html, body, #__nuxt { width: 100%; height: 100%; }
 .live { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; }
 .live > iframe { display: block; flex: 1; min-height: 0; width: 100%; margin: 0; border: 0; background: white; }
 .live > p:not(.visually-hidden) { padding: 1rem; }
-.synthetic { padding: 1rem; }
-.synthetic iframe { margin-top: 1rem; width: 100%; height: 72vh; border: 1px solid #98a7b8; background: white; }
 .notice { position: absolute; z-index: 1; top: .5rem; right: .5rem; max-width: min(32rem, calc(100% - 3rem)); padding: 1rem; background: #fff; color: #17212e; border: 1px solid #98a7b8; box-shadow: 0 2px 8px #0003; }
 .notice p:first-child { margin-top: 0; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }

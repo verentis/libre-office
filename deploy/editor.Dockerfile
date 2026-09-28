@@ -10,6 +10,6 @@ FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35
 WORKDIR /app
 COPY --from=build --chown=node:node /src/apps/editor/.output/ ./
 USER node
-ENV HOST=0.0.0.0 PORT=3000 NUXT_PUBLIC_SYNTHETIC_ONLY=false
+ENV HOST=0.0.0.0 PORT=3000
 EXPOSE 3000
 CMD ["node", "server/index.mjs"]

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
+import { chromium } from '@playwright/test';
 
 const listen = handler => new Promise(resolve => {
     const server = createServer(handler);
@@ -10,7 +11,8 @@ const listen = handler => new Promise(resolve => {
 const port = server => server.address().port;
 
 test('built CODE proxy substitutes only authorized ancestors on document POST', async () => {
-    const backend = await listen((_request, response) => {
+    const backend = await listen((request, response) => {
+        assert.ok(['/v1/collaboration/frames/authorize', '/v1/collaboration/embeds/authorize'].includes(request.url));
         response.setHeader('Content-Type', 'application/json');
         response.end(JSON.stringify({ parentOrigin: 'https://customer.example' }));
     });
@@ -27,12 +29,11 @@ test('built CODE proxy substitutes only authorized ancestors on document POST', 
         cwd: new URL('../../apps/editor/', import.meta.url),
         env: {
             ...process.env, NITRO_HOST: '127.0.0.1', NITRO_PORT: String(proxyPort),
-            NUXT_BACKEND_URL: `http://127.0.0.1:${port(backend)}`,
+            NUXT_COLLABORATION_URL: `http://127.0.0.1:${port(backend)}`,
             NUXT_CODE_URL: `http://127.0.0.1:${port(code)}`,
             NUXT_PUBLIC_EDITOR_ORIGIN: 'https://office-code.apps.verentis.dev',
-            NUXT_PUBLIC_WOPI_ORIGIN: 'https://office-wopi.apps.verentis.dev',
+            NUXT_PUBLIC_WOPI_ORIGIN: 'https://api.verentis.dev',
             NUXT_PUBLIC_WRAPPER_ORIGIN: 'https://office.apps.verentis.dev',
-            NUXT_PUBLIC_SYNTHETIC_ONLY: 'false'
         },
         stdio: 'ignore'
     });
@@ -46,10 +47,20 @@ test('built CODE proxy substitutes only authorized ancestors on document POST', 
             await new Promise(resolve => setTimeout(resolve, 100));
         }
         assert.equal(ready, true, 'built editor starts');
-        const source = 'https://office-wopi.apps.verentis.dev/wopi/00000000-0000-0000-0000-000000000001/6D61696E/files/00000000-0000-0000-0000-000000000002';
+        const source = 'https://api.verentis.dev/wopi/files/00000000000000000000000000000002';
         const path = `/browser/dist/cool.html?WOPISrc=${encodeURIComponent(source)}`;
         const origin = `http://127.0.0.1:${proxyPort}`;
-        const headers = { Host: 'office-code.apps.verentis.dev', 'Content-Type': 'application/x-www-form-urlencoded' };
+        for (const [method, retiredPath] of [
+            ['POST', '/api/test/sessions'], ['GET', '/api/sessions'], ['GET', '/api'], ['OPTIONS', '/api/']
+        ]) {
+            const retired = await fetch(origin + retiredPath, {
+                method, headers: { Accept: 'text/html', Origin: 'https://office.apps.verentis.dev' }
+            });
+            assert.equal(retired.status, 404, `${method} ${retiredPath} must not reach the SPA fallback`);
+            assert.doesNotMatch(await retired.text(), /id="__nuxt"/);
+        }
+        const headers = { Host: 'office-code.apps.verentis.dev', 'Content-Type': 'application/x-www-form-urlencoded',
+            Origin: 'https://office.apps.verentis.dev' };
         const response = await fetch(origin + path, {
             method: 'POST', headers, body: `access_token=${'a'.repeat(43)}&access_token_ttl=10000`
         });
@@ -57,14 +68,52 @@ test('built CODE proxy substitutes only authorized ancestors on document POST', 
         assert.equal(response.headers.get('content-security-policy'),
             "default-src 'self';frame-ancestors https://office.apps.verentis.dev https://customer.example; connect-src 'self'");
         assert.equal(await response.text(), '<html>CODE</html>');
+        assert.equal((await fetch(origin + path, {
+            method: 'POST', headers: { ...headers, Origin: 'https://unapproved.example' },
+            body: `access_token=${'a'.repeat(43)}`
+        })).status, 403);
+        assert.equal((await fetch(origin + path, {
+            method: 'POST', headers, body: `access_token=${'a'.repeat(43)}&access_token=${'b'.repeat(43)}`
+        })).status, 403);
         assert.equal((await fetch(origin + path, { headers })).status, 403);
         assert.equal((await fetch(origin + '/', { headers: { Host: 'office.apps.verentis.dev' } })).status, 403);
-        const wrapper = await fetch(origin + `/?embedTicket=${'a'.repeat(79)}`, {
-            headers: { Host: 'office.apps.verentis.dev', 'X-Forwarded-Proto': 'https',
-                'X-Forwarded-Host': 'office.apps.verentis.dev' }
-        });
+        const navigationHeaders = { Host: 'office.apps.verentis.dev', 'X-Forwarded-Proto': 'https',
+            'X-Forwarded-Host': 'office.apps.verentis.dev' };
+        const embedTicket = ['a'.repeat(64), 'b'.repeat(600), 'c'.repeat(86)].join('.');
+        const wrapper = await fetch(origin + `/?embedTicket=${embedTicket}`, { headers: navigationHeaders });
         assert.equal(wrapper.status, 200);
         assert.equal(wrapper.headers.get('content-security-policy'), 'frame-ancestors https://customer.example');
+        const wrapperHtml = await wrapper.text();
+        assert.match(wrapperHtml, /name="verentis-parent-origin" content="https:\/\/customer.example"/);
+        const referrerMeta = wrapperHtml.match(/<meta name="referrer" content="[^"]+">/)?.[0];
+        assert.ok(referrerMeta, 'wrapper declares its document referrer policy');
+        const browser = await chromium.launch();
+        try {
+            const page = await browser.newPage();
+            await page.route('https://office.apps.verentis.dev/**', route => route.fulfill({
+                contentType: 'text/html',
+                headers: { 'Referrer-Policy': wrapper.headers.get('referrer-policy') },
+                body: referrerMeta + '<form method="post" action="https://office-code.apps.verentis.dev/browser/dist/cool.html">' +
+                    '<input name="access_token" value="synthetic"><button>Open</button></form>',
+            }));
+            await page.route('https://office-code.apps.verentis.dev/**', route =>
+                route.fulfill({ contentType: 'text/html', body: 'CODE' }));
+            await page.goto(`https://office.apps.verentis.dev/?embedTicket=${embedTicket}`);
+            const [post] = await Promise.all([
+                page.waitForRequest(request => request.method() === 'POST'),
+                page.getByRole('button', { name: 'Open' }).click(),
+            ]);
+            const postedHeaders = await post.allHeaders();
+            assert.equal(postedHeaders.origin, 'https://office.apps.verentis.dev');
+            assert.equal(postedHeaders.referer, 'https://office.apps.verentis.dev/');
+            assert.equal(postedHeaders.referer.includes('embedTicket'), false);
+        } finally {
+            await browser.close();
+        }
+        assert.equal((await fetch(origin + `/?embedTicket=${embedTicket}&embedTicket=${embedTicket}`,
+            { headers: navigationHeaders })).status, 403);
+        assert.equal((await fetch(origin + '/?embedTicket=invalid%2Bvalue',
+            { headers: navigationHeaders })).status, 403);
         assert.equal((await fetch(origin + '/_ready')).status, 200);
     } finally {
         child.kill('SIGTERM');

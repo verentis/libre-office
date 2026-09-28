@@ -15,13 +15,12 @@ test('Nuxt uses injected TLS and rejects incomplete certificate configuration', 
     assert.throws(() => load({ NUXT_HTTPS_KEY: '/key' }), /Configure both/);
 });
 
-test('Aspire and Compose overlays retain distinct synthetic launch addresses', () => {
+test('environment overlays bind distinct WOPI wrapper and operator origins without OAuth clients', () => {
     const overlay = name => parse(readFileSync(`manifests/environments/${name}.yaml`, 'utf8'));
     assert.equal(overlay('local').spec.entry, 'https://office.localtest.me');
-    assert.equal(overlay('compose').spec.entry, 'https://office.localhost:8443');
-    const compose = parse(readFileSync('dev/compose.yaml', 'utf8'));
-    const lock = JSON.parse(readFileSync('deploy/code.lock.json', 'utf8'));
-    assert.equal(compose.services.code.image, `${lock.repository}:${lock.tag}@${lock.digest}`);
-    assert.equal(compose.services.harness.environment.EditorOrigin, overlay('compose').spec.entry);
-    assert.equal(compose.services.editor.environment.NUXT_PUBLIC_SYNTHETIC_ONLY, 'true');
+    for (const name of ['local', 'production']) {
+        assert.equal(overlay(name).spec.wopi['editor-origin'], overlay(name).spec.entry);
+        assert.equal(overlay(name).spec['hosted-backend'], undefined);
+    }
+    assert.equal(overlay('local').spec.wopi['operator-origin'], 'https://office-code.localtest.me');
 });

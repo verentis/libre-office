@@ -2,7 +2,6 @@ import { exactHttpsOrigin } from '../../shared/frame-policy.mjs';
 
 export default defineEventHandler(async (event) => {
     const config = useRuntimeConfig(event);
-    if (config.public.syntheticOnly === true || String(config.public.syntheticOnly) === 'true') return;
     const url = getRequestURL(event, { xForwardedHost: true, xForwardedProto: true });
     const navigation = url.pathname === '/' ||
         getHeader(event, 'accept')?.includes('text/html') &&
@@ -13,9 +12,9 @@ export default defineEventHandler(async (event) => {
     if (url.origin !== config.public.wrapperOrigin)
         throw createError({ statusCode: 403 });
     const tickets = url.searchParams.getAll('embedTicket');
-    if (tickets.length !== 1 || !/^[A-Za-z0-9_-]{32,128}$/.test(tickets[0]!))
+    if (tickets.length !== 1 || !/^[A-Za-z0-9_.-]{32,8192}$/.test(tickets[0]!))
         throw createError({ statusCode: 403 });
-    const response = await fetch(new URL('/embed/authorize', config.backendUrl), {
+    const response = await fetch(new URL('/v1/collaboration/embeds/authorize', config.collaborationUrl), {
         method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ticket: tickets[0] }), signal: AbortSignal.timeout(15000)
     });
@@ -24,10 +23,12 @@ export default defineEventHandler(async (event) => {
     const parent = typeof result === 'object' && result !== null && 'parentOrigin' in result
         ? result.parentOrigin : null;
     try {
-        setHeader(event, 'Content-Security-Policy', `frame-ancestors ${exactHttpsOrigin(parent as string)}`);
+        const parentOrigin = exactHttpsOrigin(parent as string);
+        event.context.officeParentOrigin = parentOrigin;
+        setHeader(event, 'Content-Security-Policy', `frame-ancestors ${parentOrigin}`);
     } catch {
         throw createError({ statusCode: 502 });
     }
     setHeader(event, 'Cache-Control', 'no-store');
-    setHeader(event, 'Referrer-Policy', 'no-referrer');
+    setHeader(event, 'Referrer-Policy', 'strict-origin');
 });

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import formats from '../../apps/editor/shared/formats.json' with { type: 'json' };
-import { isTrustedMessage, parseParentOrigins, isTrustedParentMessage, isPotentialParentMessage, childMessage, nextDirty, validateLaunch, validateLiveLaunch, saveConfirmed } from '../../apps/editor/shared/boundaries.mjs';
+import { isTrustedMessage, parseParentOrigins, isTrustedParentMessage, isPotentialParentMessage, childMessage, nextDirty, validateLiveLaunch, validateLiveContinuation, isDerivedSaveResponse, editorReloadStarted, saveAsDraft, saveAsCommand, saveConfirmed, sessionStatusProblem } from '../../apps/editor/shared/boundaries.mjs';
 
 test('live parent is pinned to the browser source and exact HTTPS origin', () => {
     const source = {};
@@ -51,30 +51,40 @@ test('loading, unacknowledged save and CODE saved messages cannot clear dirty', 
         { MessageId: 'Action_Save_Resp', Values: { success: true } }
     ]) assert.equal(nextDirty(true, message), true);
 });
-test('launch rejects arbitrary URL, origin, scope, lifetime and identity', () => {
-    const editor = 'https://code.localhost:8443', wopi = 'https://wopi.localhost:8443', id = 'a'.repeat(32);
-    const source = `${wopi}/wopi/synthetic/main/files/${id}`;
-    const launch = { action: `${editor}/browser/abc/cool.html?WOPISrc=${encodeURIComponent(source)}`, accessToken: 'a'.repeat(43), accessTokenTtl: Date.now() + 60000, fileId: id, format: 'docx', editorOrigin: editor, wopiSource: source, syntheticOnly: true };
-    assert.equal(validateLaunch(launch, editor, wopi), launch);
-    for (const change of [
-        { action: launch.action.replace('code.localhost', 'evil.invalid') }, { accessTokenTtl: 0 },
-        { accessToken: 'verentis-token' }, { fileId: '../file' }, { syntheticOnly: false }, { format: 'exe' },
-        { wopiSource: source.replace('/main/', '/other/') }, { editorOrigin: wopi },
-        { action: launch.action + '&WOPISrc=evil' }, { action: launch.action.replace('/browser/abc/cool.html', '/elsewhere') }
-    ]) assert.throws(() => validateLaunch({ ...launch, ...change }, editor, wopi));
+test('frame readiness invalidates the prior document-loaded state without clearing dirty', () => {
+    for (const message of [
+        { MessageId: 'App_LoadingStatus', Values: { Status: 'Frame_Ready' } },
+    ]) {
+        assert.equal(editorReloadStarted(message), true);
+        assert.equal(nextDirty(true, message), true);
+    }
+    assert.equal(editorReloadStarted({ MessageId: 'App_LoadingStatus', Values: { Status: 'Document_Loaded' } }), false);
+    assert.equal(editorReloadStarted({ MessageId: 'UI_SaveAs' }), false);
+    assert.equal(editorReloadStarted({ MessageId: 'File_Rename' }), false);
 });
-
 test('live launch binds exact host context without trusting backend navigation', () => {
     const editor = 'https://code.example', wopi = 'https://wopi.example';
     const context = { workspace: { id: 'workspace' }, file: { nodeId: 'node', branch: 'main' } };
-    const source = `${wopi}/wopi/workspace/6D61696E/files/node`;
+    const source = `${wopi}/wopi/files/${'d'.repeat(32)}`;
     const value = {
-        syntheticOnly: false, fileId: 'node', sessionId: 'a'.repeat(32), statusCredential: 'b'.repeat(43),
-        accessToken: 'c'.repeat(43), accessTokenTtl: Date.now() + 60_000, readOnly: true, format: 'xlsx',
+        fileId: 'd'.repeat(32), nodeId: 'node', sessionId: 'a'.repeat(32), workspaceId: 'workspace', branch: 'main',
+        accessToken: 'c'.repeat(43), accessTokenTtl: Date.now() + 60_000, readOnly: true, format: 'xlsx', name: 'test.xlsx',
         action: `${editor}/browser/abc/cool.html?WOPISrc=${encodeURIComponent(source)}`,
         editorOrigin: editor, wopiSource: source
     };
     assert.equal(validateLiveLaunch(value, editor, wopi, context), value);
+    const platformProfile = { ...value, accessTokenTtl: Date.now() + 10 * 3600_000 };
+    assert.equal(validateLiveLaunch(platformProfile, editor, wopi, context), platformProfile);
+    const continued = { sessionId: 'b'.repeat(32), workspaceId: value.workspaceId, branch: value.branch,
+        nodeId: 'parent-selected-target', fileId: 'f'.repeat(32), name: 'copy.xlsx', format: 'xlsx',
+        readOnly: false, accessTokenTtl: Date.now() + 2 * 3600_000 };
+    assert.deepEqual(validateLiveContinuation(continued, value), continued);
+    for (const change of [
+        { workspaceId: 'foreign' }, { branch: 'foreign' }, { accessTokenTtl: Date.now() - 1 },
+        { accessTokenTtl: NaN }, { fileId: 'wrong-target' }, { nodeId: '' }, { sessionId: '' },
+        { accessToken: value.accessToken }, { credentialId: 'parent-only' }, { action: value.action },
+        { wopiSource: value.wopiSource }, { format: 'exe' }, { readOnly: undefined },
+    ]) assert.throws(() => validateLiveContinuation({ ...continued, ...change }, value));
     for (const [format, definition] of Object.entries(formats)) {
         assert.equal(validateLiveLaunch({ ...value, format }, editor, wopi, context).format, format);
         if (definition.mode === 'view')
@@ -83,9 +93,13 @@ test('live launch binds exact host context without trusting backend navigation',
             assert.equal(validateLiveLaunch({ ...value, format, readOnly: false }, editor, wopi, context).readOnly, false);
     }
     for (const change of [
-        { fileId: 'other' }, { syntheticOnly: true }, { accessTokenTtl: Date.now() + 9 * 3600_000 },
-        { statusCredential: 'not-a-credential' }, { readOnly: undefined }, { format: 'exe' }, { format: '__proto__' },
-        { wopiSource: source.replace('workspace', 'other') }, { action: value.action.replace('code.example', 'untrusted.example') }
+        { fileId: 'e'.repeat(32) }, { nodeId: 'other' }, { workspaceId: 'other' },
+        { accessTokenTtl: Number.MAX_SAFE_INTEGER + 1 }, { accessTokenTtl: Number.NaN },
+        { accessToken: 'not-a-credential' }, { readOnly: undefined }, { format: 'exe' }, { format: '__proto__' },
+        { wopiSource: source.replace('/files/', '/other/') }, { action: value.action.replace('code.example', 'untrusted.example') },
+        { action: value.action + '&WOPISrc=evil' }, { accessTokenTtl: 0 },
+        { name: null }, { action: value.action + '&access_token=leaked' },
+        { action: value.action.replace('/browser/abc/cool.html', '/elsewhere') }
     ]) assert.throws(() => validateLiveLaunch({ ...value, ...change }, editor, wopi, context));
     assert.throws(() => validateLiveLaunch(value, editor, wopi, { ...context, file: { nodeId: 'node', branch: 'other' } }));
 });
@@ -97,8 +111,60 @@ test('only a matching durable snapshot receipt with no later edits clears dirty'
     assert.equal(saveConfirmed(result, request, 3, false), false);
     assert.equal(saveConfirmed(result, request, 2, true), false);
     for (const change of [
-        { receipt: null }, { state: 'conflict' }, { revision: 'external-winner' },
+        { receipt: null }, { state: 'conflict' }, { receipt: { ...request, revision: '' } },
+        { continuationAvailable: true },
         { receipt: { ...result.receipt, correlation: 'earlier-save' } },
         { receipt: { ...result.receipt, generation: 1 } }
     ]) assert.equal(saveConfirmed({ ...result, ...change }, request, 2, false), false);
+});
+
+test('CODE Save As is only a continuation signal and cannot acknowledge the source save', () => {
+    const message = { MessageId: 'Action_Save_Resp', Values: { success: true, fileName: 'copy.docx' } };
+    assert.equal(isDerivedSaveResponse(message), true);
+    assert.equal(nextDirty(false, message), true);
+    assert.equal(nextDirty(true, message), true);
+    assert.equal(isDerivedSaveResponse({ MessageId: 'Action_Save_Resp', Values: { success: true } }), false);
+    assert.equal(isDerivedSaveResponse({ ...message, Values: { success: false, fileName: 'copy.docx' } }), false);
+    assert.equal(saveConfirmed({ state: 'ready', revision: 'new-head', receipt: null },
+        { generation: 1, correlation: 'source-checkpoint' }, 1, false), false);
+});
+
+test('Save As uses the requested editable format and never treats a filename as target authority', () => {
+    assert.deepEqual(saveAsDraft('source.docx', 'docx', undefined), { filename: 'source copy.docx', format: 'docx' });
+    assert.deepEqual(saveAsDraft('source.docx', 'docx', 'odt'), { filename: 'source copy.odt', format: 'odt' });
+    for (const format of ['pdf', 'exe', '__proto__', 'DOCX', null, {}, '../docx'])
+        assert.throws(() => saveAsDraft('source.docx', 'docx', format));
+    const command = saveAsCommand('A new copy.docx', 'docx');
+    assert.equal(command.MessageId, 'Action_SaveAs');
+    assert.ok(Number.isSafeInteger(command.SendTime));
+    assert.deepEqual(command.Values, { Filename: 'A new copy.docx', Notify: true });
+});
+
+test('Save As rejects paths, invalid names and unrequested format changes before sending CODE a command', () => {
+    for (const filename of ['', '.docx', '..docx', '../copy.docx', 'folder/copy.docx', 'folder\\copy.docx',
+        ' copy.docx', 'copy.docx ', 'copy.odt', 'copy\u0000.docx', 'copy\n.docx', `${'a'.repeat(251)}.docx`])
+        assert.throws(() => saveAsCommand(filename, 'docx'));
+    assert.throws(() => saveAsCommand('copy.pdf', 'pdf'));
+});
+
+test('a later coauthor revision cannot invalidate an exact earlier durable save receipt', () => {
+    const request = { correlation: 'own-save', generation: 4 };
+    const status = {
+        state: 'ready', revision: 'later-coauthor-revision',
+        receipt: { ...request, revision: 'own-committed-revision' },
+    };
+    assert.equal(saveConfirmed(status, request, 4, false), true);
+    assert.equal(saveConfirmed({ ...status, receipt: null }, request, 4, false), false);
+    assert.equal(saveConfirmed(status, request, 5, false), false);
+    assert.equal(saveConfirmed(status, request, 4, true), false);
+});
+
+test('revocation and expiry preserve visible recovery instructions and stop the session', () => {
+    assert.equal(sessionStatusProblem('ready'), null);
+    assert.equal(sessionStatusProblem('revoked').terminal, true);
+    assert.match(sessionStatusProblem('revoked').message, /Editing access was revoked.*Preserve unverified edits/);
+    assert.equal(sessionStatusProblem('expired').terminal, true);
+    assert.match(sessionStatusProblem('expired').message, /session expired/);
+    assert.equal(sessionStatusProblem('conflict').terminal, false);
+    assert.match(sessionStatusProblem('unknown').message, /recovery.*no overwrite/);
 });

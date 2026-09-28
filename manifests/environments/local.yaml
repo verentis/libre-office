@@ -1,12 +1,16 @@
 metadata:
-  display-name: Office
-  description: Self-hosted Office local preview for Microsoft Office,
+  display-name: Libre Office
+  description: Self-hosted Libre Office local preview for Microsoft Office,
     OpenDocument, RTF, CSV and other CODE-supported formats.
   labels:
     integration-status: local-preview
-    synthetic-tests-only: "false"
 spec:
   entry: https://office.localtest.me
+  capabilities:
+    - wopi
+  wopi:
+    editor-origin: https://office.localtest.me
+    operator-origin: https://office-code.localtest.me
   mime-types:
     - pattern: application/vnd.openxmlformats-officedocument.wordprocessingml.document
       mode: edit
@@ -264,9 +268,7 @@ spec:
       mode: view
       priority: 150
       icon: lucide:shapes
-  permissions:
-    - node.file.read
-    - node.node.create
+  permissions: []
   file-types:
     - pattern: application/vnd.openxmlformats-officedocument.wordprocessingml.document
       extensions:
