@@ -26,16 +26,17 @@ install and approve consent for the new signed package explicitly.
 ## Local development
 
 The repository is [verentis/libre-office](https://github.com/verentis/libre-office).
-Keep the checkout directory named `office` alongside `sdk` and `platform`:
+Clone it with its default `libre-office` directory name alongside `sdk` and
+`platform`. The platform also supports the legacy sibling name `office`:
 
 ```sh
-git clone https://github.com/verentis/libre-office.git office
-cd office
+git clone https://github.com/verentis/libre-office.git
+cd libre-office
 npm ci
 ```
 
-The internal `@verentis/office-editor` workspace, AppHost paths, wrapper/CODE
-workload names and public DNS origins are unchanged.
+The internal `@verentis/office-editor` workspace, runtime resource identities,
+wrapper/CODE workload names and public DNS origins are unchanged.
 Use the platform Aspire host with its documented isolated dependencies and
 trusted development certificates. Office runs at `https://office.localtest.me`,
 CODE at `https://office-code.localtest.me`, and WOPI callbacks target the platform
