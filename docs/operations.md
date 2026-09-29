@@ -23,6 +23,19 @@ Normal platform APIs retain their normal OAuth middleware. WOPI routes must not
 be accidentally gated by platform JWT authentication or expose internal
 Security/Resource/Node authority endpoints.
 
+## Browser asset caching
+
+The wrapper marks successful static assets beneath CODE's hexadecimal,
+content-versioned `/browser/{version}/` path as public and immutable for one
+year. This allows browsers and the proxied Cloudflare zone to reuse bundles
+until a CODE upgrade changes the version segment.
+
+Document HTML, query-bearing or non-versioned paths, credentialed requests,
+cookie-setting responses, upstream cache prohibitions and failures remain
+`no-store`. After deployment, confirm a versioned asset progresses from
+`CF-Cache-Status: MISS` to `HIT`; do not add a cache rule that includes
+`cool.html` or WOPI-bearing URLs.
+
 ## Wrapper configuration
 
 | Setting | Meaning |
