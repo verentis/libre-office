@@ -156,14 +156,14 @@ branch before an operator can select a feature branch.
 
 | Environment setting | Source |
 | --- | --- |
-| `PLATFORM_ORIGIN` | Nonsecret `sprint` environment variable; expected current value `https://api.sprint-9.verentis.dev`, verified against live `Office__PlatformOrigin` |
+| `PLATFORM_ORIGIN` | Nonsecret `sprint` environment variable; expected current value `https://api.sprint.verentis.dev`, verified against the live Office deployment |
 | `CODE_PROOF_KEY` | Durable per-environment secret containing an unencrypted RSA private PEM key, at least 2048 bits; passed only to the provisioning step |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | Existing Azure deployment secrets; retain them |
 | `ACR_NAME`, `ACR_LOGIN_SERVER`, `AKS_CLUSTER_NAME`, `AKS_RESOURCE_GROUP` | Existing deployment settings supplied as secrets |
 
 The renderer consumes `PLATFORM_ORIGIN`, not `OFFICE_PLATFORM_ORIGIN`; the
 workflow reads `vars.PLATFORM_ORIGIN`, never the obsolete Office origin secret.
-It requires an exact lowercase `https://api.sprint-<id>.verentis.dev` origin,
+It requires the exact lowercase `https://api.sprint.verentis.dev` origin,
 with no credentials, explicit port, path, trailing slash, query or fragment.
 Missing, malformed and non-sprint origins fail before Azure login. This same
 origin sets wrapper callbacks and the CODE `:443` allowlist; do not remove it as

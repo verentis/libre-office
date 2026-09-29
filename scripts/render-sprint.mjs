@@ -34,13 +34,12 @@ export function validate(env, lock = JSON.parse(readFileSync(new URL('deploy/cod
     if (!/^[a-z0-9-]+\.azurecr\.io$/.test(env.ACR_LOGIN_SERVER) ||
         env.ACR_LOGIN_SERVER !== `${env.ACR_NAME}.azurecr.io`)
         throw new Error('ACR_LOGIN_SERVER must match ACR_NAME');
-    const sprint = /^https:\/\/api\.(sprint-[a-z0-9]+(?:-[a-z0-9]+)*)\.verentis\.dev$/.exec(env.PLATFORM_ORIGIN);
-    if (!sprint)
+    if (env.PLATFORM_ORIGIN !== 'https://api.sprint.verentis.dev')
         throw new Error('PLATFORM_ORIGIN must be the sprint platform API origin');
     if (lock.repository !== 'docker.io/collabora/code' ||
         !/^\d+(?:\.\d+)+$/.test(lock.tag) || !digest.test(lock.digest))
         throw new Error('Invalid pinned CODE image in deploy/code.lock.json');
-    return sprint[1];
+    return 'sprint';
 }
 
 export function renderSprint(env, lock = JSON.parse(readFileSync(new URL('deploy/code.lock.json', root)))) {

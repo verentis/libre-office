@@ -13,7 +13,7 @@ const env = {
     ACR_NAME: 'acrverentis', ACR_LOGIN_SERVER: 'acrverentis.azurecr.io',
     AKS_CLUSTER_NAME: 'aks-verentis-dev-southafricanorth',
     AKS_RESOURCE_GROUP: 'rg-verentis-platform-dev-southafricanorth',
-    PLATFORM_ORIGIN: 'https://api.sprint-9.verentis.dev',
+    PLATFORM_ORIGIN: 'https://api.sprint.verentis.dev',
     EDITOR_IMAGE: `acrverentis.azurecr.io/verentis/office-editor@sha256:${'a'.repeat(64)}`
 };
 const lock = JSON.parse(readFileSync(new URL('../../deploy/code.lock.json', import.meta.url)));
@@ -93,17 +93,17 @@ test('only editor and CODE are exposed; WOPISrc and allowlist name the platform 
 });
 
 test('wrong environment, mutable images and bad CODE pins fail closed without Office credentials', () => {
-    assert.equal(validate(env), 'sprint-9');
+    assert.equal(validate(env), 'sprint');
     for (const key of Object.keys(env).filter(key => !key.endsWith('_IMAGE')))
         assert.throws(() => validate({ ...env, [key]: '' }), new RegExp(key));
     for (const origin of [
-        'https://api.uat.verentis.dev', 'http://api.sprint-9.verentis.dev',
-        'https://api.sprint-9.verentis.dev/', 'https://api.sprint-9.verentis.dev:443',
-        'not-a-url', 'https://api.sprint-9.verentis.dev/path',
-        'https://api.sprint-9.verentis.dev?query=1', 'https://api.sprint-9.verentis.dev#fragment',
+        'https://api.uat.verentis.dev', 'https://api.sprint-9.verentis.dev',
+        'http://api.sprint.verentis.dev', 'https://api.sprint.verentis.dev/',
+        'https://api.sprint.verentis.dev:443', 'not-a-url',
+        'https://api.sprint.verentis.dev/path', 'https://api.sprint.verentis.dev?query=1',
+        'https://api.sprint.verentis.dev#fragment',
         'https://user:password@api.sprint-9.verentis.dev',
-        'https://api.sprint-9.verentis.dev.evil.invalid', 'https://api.sprint-.verentis.dev',
-        'https://api.SPRINT-9.verentis.dev'
+        'https://api.sprint.verentis.dev.evil.invalid', 'https://api.SPRINT.verentis.dev'
     ]) assert.throws(() => renderSprint({ ...env, PLATFORM_ORIGIN: origin }), /sprint platform/);
     for (const origin of [undefined, '', ' ', ` ${env.PLATFORM_ORIGIN}`, `${env.PLATFORM_ORIGIN}\n`])
         assert.throws(() => validate({ ...env, PLATFORM_ORIGIN: origin }), /PLATFORM_ORIGIN/);
