@@ -4,12 +4,28 @@ metadata:
   name: libre-office
   package-id: libre-office
   display-name: Libre Office
-  description: View and edit workspace documents with self-hosted Collabora and
-    platform-owned WOPI.
-  version: 0.1.10
+  description: View and edit workspace documents, spreadsheets and presentations with the Collabora editor.
+  version: 0.1.11
   author: Verentis
   labels:
     integration-status: consent-required
+marketplace:
+  logo: ./marketplace/logo.svg
+  hero:
+    source: ./marketplace/hero.svg
+    alt: "Subdued layered paper-like planes on a tonal background, with a quiet centre for the marketplace title, details and install controls."
+  images:
+    - source: ./marketplace/calc.png
+      alt: Actual Collabora spreadsheet editor displaying an original synthetic season budget with areas, budgets and remaining amounts.
+      caption: "Spreadsheet editing in Collabora: original synthetic season budget, not customer data."
+    - source: ./marketplace/writer.png
+      alt: Actual Collabora document editor displaying an original synthetic planning brief with headings and paragraphs.
+      caption: "Document editing in Collabora: original synthetic planning brief, not a desktop LibreOffice screenshot."
+    - source: ./marketplace/impress.png
+      alt: Actual Collabora presentation editor displaying an original synthetic season-planning slide.
+      caption: "Presentation editing in Collabora: original synthetic slide, captured from the real browser editor."
+  readme: ./marketplace/README.md
+
 spec:
   scope: global
   entry: https://office.apps.verentis.dev

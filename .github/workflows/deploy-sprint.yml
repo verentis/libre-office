@@ -83,7 +83,7 @@ jobs:
             kubectl rollout status deployment/"$name" -n verentis-apps --timeout=10m
           done
           for name in office-code office-editor; do
-            for attempt in {1..30}; do
+            for ((attempt = 1; attempt <= 30; attempt++)); do
               if kubectl get -n verentis-apps certificate/"$name"-tls >/dev/null 2>&1; then break; fi
               sleep 5
             done
@@ -91,3 +91,17 @@ jobs:
           done
           curl --fail --silent --show-error --retry 12 --retry-delay 10 --retry-all-errors --max-time 15 https://office-code.apps.verentis.dev/hosting/discovery -o /dev/null
           curl --fail --silent --show-error --retry 12 --retry-delay 10 --retry-all-errors --max-time 15 https://office.apps.verentis.dev/_ready -o /dev/null
+          test "$(kubectl get deployment office-editor -n verentis-apps -o jsonpath='{.spec.template.spec.containers[0].image}')" = "$EDITOR_IMAGE"
+
+  publish:
+    needs: deploy
+    if: github.repository == 'verentis/libre-office' && startsWith(github.ref, 'refs/heads/feat/')
+    uses: verentis/.github/.github/workflows/publish-verentis-package-sprint.yml@main
+    with:
+      package-root: manifests
+      manifest: office.app.yaml
+      overlay: environments/production.yaml
+      visibility: Private
+    secrets:
+      sprint-api-url: ${{ secrets.SPRINT_API_URL }}
+      publisher-signing-key: ${{ secrets.PUBLISHER_SIGNING_KEY }}

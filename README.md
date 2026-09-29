@@ -1,5 +1,7 @@
 # Libre Office
 
+Installer-facing listing: [Marketplace README](manifests/marketplace/README.md). Development documentation continues below.
+
 Nuxt/Vue editor wrapper and pinned self-hosted Collabora CODE. The platform's
 Collaboration service owns all WOPI admission, scoped credentials, locks and
 durable saves; Office is not a file-storage or OAuth backend.
@@ -69,6 +71,21 @@ or restarted after source, manifest or vendored SDK changes.
 publish, install or deploy them. It inspects base/local/production archives for
 the Libre Office identity and unchanged WOPI contract. The vendored SDK archive is integrity-pinned in
 the lockfile. `npm run fixtures` regenerates document fixtures, not a WOPI host.
+
+After the `feat/**` sprint deployment rolls out the current commit's editor
+image and verifies both live endpoints, `.github/workflows/deploy-sprint.yml`
+submits a signed production-overlay package from `manifests/` via publisher
+GitHub OIDC. A failed deployment skips publication. Configure the protected
+`sprint` environment, organization secrets
+`SPRINT_API_URL` and `PUBLISHER_SIGNING_KEY` (CLI JSON signing key), and publisher
+federation trust for this repository. The shared workflow derives the package
+version from GitVersion; `GitVersion.yml` labels `feat/*` releases as
+prereleases without a pinned base.
+This manifest-only package needs no npm build;
+`checks.yml` still builds and verifies the wrapper independently. Publication
+does not deploy CODE or the wrapper, install the package, or grant WOPI consent.
+`prepare-release.yml` remains manual and offline. New Sprint listings are
+Private until a separate public-readiness review authorizes visibility.
 
 ## Layout
 
