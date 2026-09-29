@@ -1,6 +1,29 @@
 import { Readable } from 'node:stream';
 import { bindFrameAncestors } from '../../../shared/frame-policy.mjs';
 
+const versionedAssetPath = /^\/browser\/[a-fA-F0-9]{8,64}\/.+\.(?:avif|bin|bmp|css|eot|gif|ico|jpe?g|js|json|map|mjs|png|svg|wasm|webp|woff2?|ttf|otf)$/i;
+const staticContentTypes = [
+    'application/font-woff', 'application/javascript', 'application/json', 'application/octet-stream',
+    'application/vnd.ms-fontobject', 'application/wasm', 'application/x-font-ttf', 'application/x-font-woff',
+    'font/', 'image/', 'text/css', 'text/javascript'
+];
+
+function isCacheableAsset(method: string, hasRequestCredentials: boolean, incoming: URL, response: Response,
+    contentType: string, cookies: string[]) {
+    const mediaType = contentType.split(';', 1)[0]!.trim().toLowerCase();
+    const upstreamCacheControl = response.headers.get('cache-control') ?? '';
+    const vary = (response.headers.get('vary') ?? '').split(',').map(value => value.trim().toLowerCase());
+    return method === 'GET'
+        && response.status === 200
+        && versionedAssetPath.test(incoming.pathname)
+        && incoming.search === ''
+        && !hasRequestCredentials
+        && cookies.length === 0
+        && !/\b(?:private|no-cache|no-store)\b/i.test(upstreamCacheControl)
+        && !vary.some(value => value === '*' || value === 'cookie' || value === 'authorization')
+        && staticContentTypes.some(type => type.endsWith('/') ? mediaType.startsWith(type) : mediaType === type);
+}
+
 export default defineEventHandler(async (event) => {
     if (event.method !== 'GET' && event.method !== 'POST') throw createError({ statusCode: 405 });
     const config = useRuntimeConfig(event);
@@ -64,10 +87,14 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 502, statusMessage: 'CODE response unavailable.' });
     setResponseStatus(event, response.status);
     const contentType = response.headers.get('content-type') ?? '';
+    const cookies = response.headers.getSetCookie();
     if (contentType) setHeader(event, 'Content-Type', contentType);
-    setHeader(event, 'Cache-Control', 'no-store');
+    const cacheable = isCacheableAsset(event.method,
+        Boolean(getHeader(event, 'cookie') || getHeader(event, 'authorization')),
+        incoming, response, contentType, cookies);
+    setHeader(event, 'Cache-Control', cacheable ? 'public, max-age=31536000, immutable' : 'no-store');
     setHeader(event, 'X-Content-Type-Options', 'nosniff');
-    for (const cookie of response.headers.getSetCookie()) appendHeader(event, 'Set-Cookie', cookie);
+    for (const cookie of cookies) appendHeader(event, 'Set-Cookie', cookie);
     if (documentPage) {
         if (!contentType.startsWith('text/html') || response.headers.has('x-frame-options'))
             throw createError({ statusCode: 502 });

@@ -58,6 +58,8 @@ test('only editor and CODE are exposed; WOPISrc and allowlist name the platform 
     assert.equal(renderSprint({ ...env, CODE_PROOF_KEY: 'must-not-enter-rendered-artifacts' }), renderSprint(env));
     assert.equal(objects.length, 6);
     assert.equal(resource('Deployment', 'office-wopi'), undefined);
+    assert.equal(resource('Deployment', 'office-editor').spec.replicas, 2);
+    assert.equal(resource('Deployment', 'office-code').spec.replicas, 1);
     for (const name of ['office-editor', 'office-code']) {
         const ingress = resource('Ingress', name);
         assert.equal(resource('Service', name).spec.type, 'ClusterIP');

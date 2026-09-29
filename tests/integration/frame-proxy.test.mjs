@@ -17,7 +17,27 @@ test('built CODE proxy substitutes only authorized ancestors on document POST', 
         response.end(JSON.stringify({ parentOrigin: 'https://customer.example' }));
     });
     const code = await listen((request, response) => {
-        response.setHeader('Content-Type', request.url.includes('cool.html') ? 'text/html' : 'text/javascript');
+        if (request.url.includes('failure.js')) {
+            response.statusCode = 503;
+            response.end('unavailable');
+            return;
+        }
+        const contentType = request.url.includes('cool.html') || request.url.includes('html.js') ? 'text/html'
+            : request.url.includes('.css') ? 'text/css; charset=utf-8'
+                : request.url.includes('.woff2') ? 'font/woff2'
+                    : request.url.includes('.woff') ? 'font/woff'
+                        : request.url.includes('.eot') ? 'application/vnd.ms-fontobject'
+                            : request.url.includes('.ttf') ? 'application/x-font-ttf'
+                                : request.url.includes('.otf') ? 'font/otf'
+                                    : request.url.includes('.png') ? 'image/png'
+                                        : request.url.includes('.wasm') ? 'application/wasm'
+                                            : request.url.includes('.json') || request.url.includes('.map') ? 'application/json'
+                                                : request.url.includes('.bin') ? 'application/octet-stream'
+                                                    : 'text/javascript';
+        response.setHeader('Content-Type', contentType);
+        if (request.url.includes('cookie.js')) response.setHeader('Set-Cookie', 'session=unsafe; Secure; HttpOnly');
+        if (request.url.includes('private.js')) response.setHeader('Cache-Control', 'private, no-store');
+        if (request.url.includes('vary.js')) response.setHeader('Vary', 'Accept-Encoding, Cookie');
         response.setHeader('Content-Security-Policy',
             "default-src 'self'; frame-ancestors office-wopi.apps.verentis.dev:*; connect-src 'self'");
         response.end(request.url.includes('cool.html') ? '<html>CODE</html>' : 'console.log(1)');
@@ -67,7 +87,61 @@ test('built CODE proxy substitutes only authorized ancestors on document POST', 
         assert.equal(response.status, 200);
         assert.equal(response.headers.get('content-security-policy'),
             "default-src 'self';frame-ancestors https://office.apps.verentis.dev https://customer.example; connect-src 'self'");
+        assert.equal(response.headers.get('cache-control'), 'no-store');
         assert.equal(await response.text(), '<html>CODE</html>');
+        const versionedAsset = await fetch(origin + '/browser/825c9caa93/bundle.js');
+        assert.equal(versionedAsset.status, 200);
+        assert.equal(versionedAsset.headers.get('content-type'), 'text/javascript');
+        assert.equal(versionedAsset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+        assert.equal(versionedAsset.headers.get('vary'), null);
+        assert.equal(await versionedAsset.text(), 'console.log(1)');
+        for (const [asset, contentType] of [
+            ['styles.css', 'text/css; charset=utf-8'],
+            ['font.woff2', 'font/woff2'],
+            ['font.woff', 'font/woff'],
+            ['font.eot', 'application/vnd.ms-fontobject'],
+            ['font.ttf', 'application/x-font-ttf'],
+            ['font.otf', 'font/otf'],
+            ['logo.png', 'image/png'],
+            ['module.wasm', 'application/wasm'],
+            ['metadata.json', 'application/json'],
+            ['bundle.js.map', 'application/json'],
+            ['payload.bin', 'application/octet-stream'],
+            ['module.mjs', 'text/javascript']
+        ]) {
+            const staticAsset = await fetch(origin + `/browser/825c9caa93/${asset}`);
+            assert.equal(staticAsset.headers.get('content-type'), contentType);
+            assert.equal(staticAsset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+        }
+        for (const versionLength of [8, 64]) {
+            const boundaryAsset = await fetch(origin + `/browser/${'a'.repeat(versionLength)}/bundle.js`);
+            assert.equal(boundaryAsset.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+        }
+        for (const unsafePath of [
+            '/browser/dist/bundle.js',
+            `/browser/${'a'.repeat(7)}/bundle.js`,
+            `/browser/${'a'.repeat(65)}/bundle.js`,
+            '/browser/825c9caa93/bundle.js?WOPISrc=credential-bearing',
+            '/browser/825c9caa93/html.js',
+            '/browser/825c9caa93/cookie.js',
+            '/browser/825c9caa93/private.js',
+            '/browser/825c9caa93/vary.js'
+        ]) {
+            const unsafe = await fetch(origin + unsafePath);
+            assert.equal(unsafe.status, 200);
+            assert.equal(unsafe.headers.get('cache-control'), 'no-store');
+        }
+        const credentialedAsset = await fetch(origin + '/browser/825c9caa93/bundle.js',
+            { headers: { Cookie: 'session=credential-bearing' } });
+        assert.equal(credentialedAsset.status, 200);
+        assert.equal(credentialedAsset.headers.get('cache-control'), 'no-store');
+        const authorizedAsset = await fetch(origin + '/browser/825c9caa93/bundle.js',
+            { headers: { Authorization: 'Bearer credential-bearing' } });
+        assert.equal(authorizedAsset.status, 200);
+        assert.equal(authorizedAsset.headers.get('cache-control'), 'no-store');
+        const failedAsset = await fetch(origin + '/browser/825c9caa93/failure.js');
+        assert.equal(failedAsset.status, 502);
+        assert.equal(failedAsset.headers.get('cache-control'), 'no-store');
         assert.equal((await fetch(origin + path, {
             method: 'POST', headers: { ...headers, Origin: 'https://unapproved.example' },
             body: `access_token=${'a'.repeat(43)}`

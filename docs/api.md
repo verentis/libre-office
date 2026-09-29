@@ -155,5 +155,8 @@ referrer excludes the embed ticket, path and query. `no-referrer` would make tha
 form's Origin `null`; the proxy deliberately rejects null or unapproved origins.
 
 There is no Office `/api/sessions`, `/test`, OAuth backend, WOPI or storage API.
-All responses are non-cacheable. Never record credentials, document bodies,
-full launch URLs or form bodies in logs, screenshots or traces.
+Successful static assets beneath a hexadecimal, content-versioned `/browser/{version}/`
+path are publicly cacheable for one year when the request and response carry no
+credentials or cookies. Document HTML, query-bearing and non-versioned paths,
+and failed responses remain non-cacheable. Never record credentials, document
+bodies, full launch URLs or form bodies in logs, screenshots or traces.
