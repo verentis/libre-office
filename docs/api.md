@@ -4,6 +4,15 @@ Office is a wrapper and Collabora CODE deployment, not a WOPI host. All WOPI
 callbacks go directly to the platform gateway at `/wopi/files/{stableDocumentId}`.
 Collaboration owns admission, credentials, locks, save receipts and persistence.
 
+The workspace host first reads the authoritative path metadata using
+`GET /v1/files/{path}?branch=main&pageNo=1&pageSize=25&metadataOnly=true`.
+This explicit projection retains normal user/workspace authorization and content
+metadata, but returns `children: null` without querying the Search index. App and
+engine surfaces do not need child listings. Browser surfaces subsequently request
+the normal projection, which retains directory/archive pagination and reports
+Search failures rather than substituting an empty listing. Omitting
+`metadataOnly` preserves the existing metadata-plus-children API behavior.
+
 ## Trusted parent bridge
 
 The SDK `Bridge` uses `verentis:wopi:request` / `verentis:wopi:response` with an

@@ -8,7 +8,7 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
-    "@verentis/sdk": "file:../../vendor/sdk/verentis-sdk-0.2.0-b72fdeb675b6.tgz",
+    "@verentis/sdk": "file:../../vendor/sdk/verentis-sdk-0.2.0-dd1dccceebef.tgz",
     "nuxt": "4.5.2",
     "vue": "3.5.43"
   },

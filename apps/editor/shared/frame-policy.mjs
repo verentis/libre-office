@@ -1,11 +1,5 @@
-export function exactHttpsOrigin(value) {
-    if (typeof value !== 'string' || value.length > 256) throw new Error('Invalid framing origin.');
-    const origin = new URL(value);
-    if (origin.protocol !== 'https:' || origin.origin !== value || origin.href !== `${value}/` ||
-        !/^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/.test(origin.hostname))
-        throw new Error('Invalid framing origin.');
-    return value;
-}
+import { exactHttpsOrigin } from '@verentis/sdk';
+export { exactHttpsOrigin };
 
 export function bindFrameAncestors(policy, parentOrigin, wrapperOrigin) {
     const parent = exactHttpsOrigin(parentOrigin);

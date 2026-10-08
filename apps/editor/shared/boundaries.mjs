@@ -1,8 +1,6 @@
 import { exactHttpsOrigin } from './frame-policy.mjs';
-
-export function isTrustedMessage(event, source, origin) {
-    return Boolean(source && origin && event.source === source && event.origin === origin);
-}
+import { isTrustedMessage, validateCollaborationDocument, isDurableSaveConfirmed } from '@verentis/sdk';
+export { isTrustedMessage };
 
 export function parseParentOrigins(configuredOrigins) {
     const origins = configuredOrigins.split(',').filter(Boolean).map(value => {
@@ -88,24 +86,11 @@ export function sessionStatusProblem(state) {
 }
 
 function validateDocument(value, context) {
-    const branch = context?.file?.branch;
-    const node = context?.file?.nodeId;
-    const workspace = context?.workspace?.id;
-    if (!branch || !node || !workspace || !value ||
-        value.nodeId !== node || value.workspaceId !== workspace || value.branch !== branch.trim().toLowerCase() ||
-        typeof value.fileId !== 'string' || !/^[a-f0-9]{32}$/.test(value.fileId) ||
-        !/^[a-f0-9-]{32,36}$/.test(value.sessionId) ||
-        !Number.isSafeInteger(value.accessTokenTtl) || value.accessTokenTtl <= Date.now() ||
-        typeof value.name !== 'string' || !value.name || value.name.length > 1024 ||
-        typeof value.readOnly !== 'boolean' ||
-        !Object.hasOwn(formats, value.format) ||
+    const document = validateCollaborationDocument(value, context ?? {});
+    if (!Object.hasOwn(formats, value.format) ||
         (formats[value.format]?.mode === 'view' && !value.readOnly))
         throw new Error('Invalid live launch.');
-    return {
-        sessionId: value.sessionId, workspaceId: value.workspaceId, branch: value.branch,
-        nodeId: value.nodeId, fileId: value.fileId, format: value.format, name: value.name,
-        readOnly: value.readOnly, accessTokenTtl: value.accessTokenTtl,
-    };
+    return { ...document, format: value.format };
 }
 
 export function validateLiveLaunch(value, editorOrigin, wopiOrigin, context) {
@@ -127,12 +112,7 @@ export function validateLiveLaunch(value, editorOrigin, wopiOrigin, context) {
 }
 
 export function saveConfirmed(result, request, currentGeneration, editorModified) {
-    return Boolean(request && editorModified === false && result?.state === 'ready' &&
-        result.continuationAvailable !== true &&
-        Number.isSafeInteger(currentGeneration) && currentGeneration === request.generation &&
-        result.receipt?.generation === request.generation &&
-        result.receipt?.correlation === request.correlation &&
-        typeof result.receipt?.revision === 'string' && result.receipt.revision.length > 0);
+    return isDurableSaveConfirmed(result, request, currentGeneration, editorModified);
 }
 
 export function validateLiveContinuation(value, current) {

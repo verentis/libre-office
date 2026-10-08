@@ -60,7 +60,19 @@ npm run check
 npm run check:framing
 # With the platform warm stack already started:
 npm run test:integration
+npm run test:integration:operations
 ```
+
+Set `VERENTIS_PLATFORM_ROOT` when the warm stack runs in a different checkout,
+for example `VERENTIS_PLATFORM_ROOT=../platform.excalidraw npm run test:integration`.
+Relative paths resolve from this repository, not the shell's working directory.
+The selected checkout must own the ready warm environment; an invalid explicit
+path fails rather than attaching to another stack. Set `VERENTIS_OFFICE_RESTART=true`
+for the core scenario to verify Node/Collaboration restart before reopening.
+An isolated collaboration service chain without Azure AI Search may explicitly
+set `VERENTIS_OFFICE_API_UPLOAD=true`. This uploads the DOCX through the signed-in
+CLI's normal workspace-scoped Node API and verifies the stored bytes before opening
+real CODE; it does not claim the Search-backed directory/upload UI was exercised.
 
 `test:integration` invokes `platform/tests/playwright`'s warm `app-office`
 scenario. It must exercise real CODE open/edit/save/reopen, simultaneous sessions

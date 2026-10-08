@@ -36,6 +36,13 @@ WOPI callbacks. Credentials are not persisted in browser storage.
 
 ## Save and recovery
 
+The wrapper consumes SDK-owned exact-origin, host-document binding and durable
+receipt validation. These are shared platform-facing contracts, independent of
+the editor provider. CODE action URL checks, supported formats, postMessage
+translation and internal coauthoring remain in the Libre Office adapter.
+This shared foundation does not imply support for a Microsoft Office provider;
+that provider requires its own admitted WOPI profile and runtime verification.
+
 CODE messages have a separate exact child-window/origin boundary. Modification
 messages latch dirty state in both wrapper and host; route/unload guards preserve
 unverified edits. Explicit saves receive platform checkpoints and pass their
