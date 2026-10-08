@@ -69,8 +69,10 @@ acceptance or deployed-version testing. Optional Node/Collaboration restart was
 not enabled in these final runs; historical restart evidence below is separate.
 This work is parked, not
 release-ready; broader scaling/performance, native restart/revocation and
-compatible SDK publication are deferred. All feature changes remain in isolated
-worktrees, uncommitted and unpushed.
+compatible SDK publication are deferred. Feature changes were committed and
+pushed from isolated `feat/*` worktrees. Delivery PRs are verentis/apps#5,
+verentis/sdk#3, verentis/cli#9 and verentis/libre-office#6 against `main`, plus
+verentis/platform#212 against `sprint-10`; no PR merge or deployment is claimed.
 
 The owned warm supervisor and tracked AppHost descendants were shut down after
 retaining the evidence. The isolated gateway port 51500 is closed and no warm
