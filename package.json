@@ -11,7 +11,8 @@
     "check:package": "node scripts/check-package.mjs",
     "check:deploy": "node scripts/check-deploy.mjs && node --test tests/unit/sprint-deploy.test.mjs",
     "check:framing": "npm run build --workspace apps/editor && node --test tests/integration/frame-proxy.test.mjs",
-    "test:integration": "npm --prefix ../platform/tests/playwright run test:warm -- app-office --project=chromium",
+    "test:integration": "node scripts/run-platform-integration.mjs app-office",
+    "test:integration:operations": "node scripts/run-platform-integration.mjs app-office-operations",
     "test:browser-boundaries": "playwright test",
     "fixtures": "python3 tests/fixtures/generate.py"
   },

@@ -1,5 +1,216 @@
 # Verification and handoff evidence
 
+## Current local Playwright acceptance and parked handoff - 2026-10-08
+
+The user requested bounded Office regression verification and then parking this
+showcase work. The rebuilt current wrapper's framing-proxy integration check
+passes, as do all seven Chromium browser boundary scenarios. The missing local
+Chromium executable was restored into the directory configured by
+`playwright.config.ts`; no browser security setting or test deadline was relaxed.
+These checks use synthetic upstream resources and do not prove live CODE saves.
+
+Both real installed journeys now pass sequentially against the owned
+`platform.excalidraw-security` slot-9 warm runtime and real Collabora CODE:
+
+| Journey | Current result |
+| --- | --- |
+| `app-office` | All seven outcomes pass: signed install/pre-install consent, ordinary DOCX upload and byte verification, real CODE launch, durable edit/save, distinct-user bidirectional coauthoring, fresh-browser reopen with exact persisted markers, and revocation/new-launch denial |
+| `app-office-operations` | All six outcomes pass: signed operations consent, source edit/save, real CODE rename with stable WOPI identity, Save As, exact derived-target continuation, and target-only subsequent persistence with the source unchanged |
+
+An earlier attempt failed before CODE opened: Marketplace's POST
+`/v1/installations/graphs` returned 500 because its
+`AppInstallationConsentClient.RecordEditorPreConsentAsync` call to Resource's
+PUT `/v1/app-installations/editor-pre-consents` returned 403. Resource runtime
+logs corroborate both denials. The request forwards the interactive caller;
+Resource's pre-consent handler requires a normal workspace-bound administrator
+token through `HostedInstallationAdministrator` / `InstallationAuthorization`.
+The graph approval client omitted the required `account.workspace.update`
+scope; the correction below resolved that failure without changing Resource
+authorization. A subsequent upload failure exposed the CLI's obsolete
+`workspaceId` token selector. The CLI now uses Security's generalized `resourceId`
+target, restoring normal workspace-bound upload authority without changing Node
+ingress/egress. Its 53 focused refresh, registry and development-loop tests pass,
+along with the previously verified CLI typecheck/build.
+
+Current scenario-local reports, screenshots and sanitized status attachments are
+under `tests/playwright/scenarios/app-office/outcomes/` and
+`tests/playwright/scenarios/app-office-operations/outcomes/` in the platform
+feature worktree. Credential-bearing traces/videos remain disabled; raw private
+diagnostic logs are not release artifacts. To rerun, use this explicit feature
+platform root, not the wrapper script's default shared `../platform` checkout:
+
+```bash
+cd /home/stephan/dev/verentis/platform.excalidraw-security/tests/playwright
+VERENTIS_HARNESS_NATIVE_ACCEPTANCE=true VERENTIS_OFFICE_API_UPLOAD=true npm run test:warm -- app-office --project=chromium
+VERENTIS_HARNESS_NATIVE_ACCEPTANCE=true VERENTIS_OFFICE_API_UPLOAD=true npm run test:warm -- app-office-operations --project=chromium
+```
+
+Start and verify an owned isolated warm environment before these commands.
+The API upload option uses the ordinary authenticated CLI Node upload/download
+pipeline without substituting Search or authorization. The native acceptance CLI
+uses the configured local CA and explicitly enables TLS certificate verification,
+even when emulator setup has disabled it in the parent process.
+
+Revocation coverage uses the supported public Resource administrator API, not
+the obsolete Marketplace management selector. An independent browser context
+approves the ordinary CLI device sign-in. The helper resolves exactly one package
+under the expected publisher and exactly one active Resource installation bound
+to that package/workspace, revokes that identity, verifies its persisted `Revoked`
+status, and retains all active-session/dirty-state/Save/new-launch denial checks.
+It does not force an app update to expose the management panel. This proves
+revocation behavior, **not Marketplace revocation UI coverage**.
+
+Current local Office basics and both complete browser journeys are verified.
+These runs used unchanged standalone Security source at
+`b400a63f1480ed038c50737ef58034922209b5dc`, built with the supported script as
+`aryzac/security-service:excalidraw-b400a63f1480`, and the integrity-pinned DD1 SDK
+archive. This is exact-source local acceptance, not published-registry digest
+acceptance or deployed-version testing. Optional Node/Collaboration restart was
+not enabled in these final runs; historical restart evidence below is separate.
+This work is parked, not
+release-ready; broader scaling/performance, native restart/revocation and
+compatible SDK publication are deferred. Feature changes were committed and
+pushed from isolated `feat/*` worktrees. Delivery PRs are verentis/apps#5,
+verentis/sdk#3, verentis/cli#9 and verentis/libre-office#6 against `main`, plus
+verentis/platform#212 against `sprint-10`; no PR merge or deployment is claimed.
+
+The owned warm supervisor and tracked AppHost descendants were shut down after
+retaining the evidence. The isolated gateway port 51500 is closed and no warm
+session remains; no shared runtime or other agent's worktree was stopped.
+
+### Consent-journey correction and residual risk - 2026-10-08
+
+The Office install helper already follows the current wizard's Editor step and
+approves consent before installation. A source-level caller-scope mismatch was
+found instead: `useInstallationGraphs.approve` requested
+`resources.resource.update` but omitted `account.workspace.update`, which
+`HostedInstallationAdministrator` requires when recording editor pre-consent.
+Approval now requests that additional scope only when the signed graph preview
+contains editors; ordinary app/dependency installations retain their existing
+scopes. No Resource authorization rule or ordinary Node file path changed.
+
+The Marketplace browser fixture now encodes requested scopes and workspace
+binding in a synthetic fixture-only token, and its mocked approval endpoint
+rejects editor consent without both administrator scopes. A new denial scenario
+requires a visible error, cleared consent and no false installed state.
+All four wizard Playwright scenarios and 32 focused Marketplace unit checks pass;
+the new unit regression failed on the old scope request before the correction.
+Evidence is scenario-local under
+`tests/playwright/scenarios/install-wizard/outcomes/`. Marketplace typecheck
+remains blocked by existing errors in `StatsChart.vue` and shared
+`brand/Supergraphic.vue`, outside the consent change.
+
+The real Office journeys above also use this pre-install consent flow; there is
+no separate post-install WOPI approval in their installation helper.
+
+One earlier operations run genuinely failed Save As during derived admission
+with EF Cosmos `DbUpdateConcurrencyException`. CODE reported `storage/savefailed`,
+and no derived continuation receipt became available. The final operations run
+passed all six outcomes after an owned Collaboration restart, but no persistence
+race correction is claimed: the intermittent failure remains a follow-up risk.
+Credential-safe WOPI failure diagnostics now include conflicting entity type
+names only, never entity values, exception data or credential-bearing scopes;
+all five focused telemetry tests and the actual Collaboration API build pass.
+If the failure recurs, identify the stale entity before changing admission or
+fencing. Do not relax authority checks, repeat the copy blindly or modify
+ordinary Node upload/download to make the scenario pass.
+
+## Shared platform-facing lifecycle - 2026-10-04
+
+The wrapper now consumes SDK-owned exact-origin/window validation, host-document
+binding and durable generation/correlation receipt checks. CODE URL/format checks,
+message translation and internal coauthoring remain provider-specific.
+The integrity-pinned SDK archive is
+`verentis-sdk-0.2.0-dd1dccceebef.tgz`, built after merging current SDK `main` and
+shared byte-for-byte with Excalidraw; older archives below identify historical
+verification inputs, not the current dependency.
+
+Local checks passed: Nuxt typecheck, all 36 Office unit checks, base/local/production
+package validation and offline packing, deployment rendering, and the built
+Chromium framing-proxy integration test. The rebuilt current wrapper also passes
+all seven browser boundary scenarios, including durable save, Save As continuation,
+revocation, wrong-target denial and target expiry. These are boundary and compatibility
+checks, not a newly executed real CODE warm journey, cloud deployment, Microsoft
+Office integration, or Software Factory completion.
+
+### Installed local CODE journey - partial acceptance
+
+The journeys below used the previous platform feature runtime. Consumer alignment
+is now isolated in `platform.excalidraw-security` on
+`feat/excalidraw-security-alignment`, merged with the current `sprint-10` baseline.
+Use the authoritative standalone Security image from the platform's
+`utilities/deployment/security/SECURITY_IMAGE`, not the historical `0e07b48` image.
+That alignment preserves AuthZEN live
+authorization, SSF permission invalidation and explicit installation drainage.
+These historical CODE results do not establish interoperability with the pinned
+standalone image; current exact-source local acceptance is recorded above.
+
+The owned isolated platform profile has now executed the real `app-office`
+scenario, using signed Marketplace installation, administrative document-processing
+consent and ordinary CLI-authenticated Node upload. The uploaded DOCX was verified
+byte-for-byte through the authenticated Node API. The workspace's metadata-only
+projection opened the known file without an emulated Search service.
+
+The latest run passed outcomes 1-6: installation/consent, upload, real CODE launch,
+a confirmed save checkpoint, distinct-user bidirectional coauthoring with a
+confirmed coauthor save, and fresh-browser reopen after restarting Node and
+Collaboration. The restart helper required healthy new process identities for
+both services. An ordinary authenticated Node download also contained all three
+exact edit markers in the persisted DOCX. The underlying AppHost, storage and
+CODE operator were not restarted.
+
+This run used the normal Office integration wrapper against a genuinely verified
+owned-attachment supervisor. Fresh authenticated publication and CODE discovery
+checks established attachment readiness; installation and document-processing
+consent still occurred through the scenario's ordinary UI/API journey.
+
+Outcome 7 failed because the administrator's public Resource installation-revocation
+request returned HTTP 503 instead of 200. Successful revocation, active-session
+drainage and denial of a subsequent launch therefore remain unverified.
+
+The failure was traced to the private installation-revocation request omitting
+the installation's account binding. The native drain rejects an empty account
+scope, producing an internal HTTP 500 and public HTTP 503. The source correction
+now carries the persisted, verified Marketplace account ID from Resource through
+Collaboration into both native drainage and WOPI fencing. Missing or empty
+bindings remain fail-closed with the durable admission freeze retained; the
+authenticated internal endpoint rejects incomplete scope before invoking drainage.
+Focused transport, HTTP authorization and actual native-guard orchestration
+regressions pass. The corrected services still require a real installed revocation
+rerun; this is not yet live revocation acceptance.
+
+An earlier run failed during coauthoring with
+**"Document cannot be saved, please check your permissions."** and unavailable live
+save status/authorization. That failure did not recur in the latest run, but its
+root cause has not been established. The harness does not dismiss that denial or
+force clicks through the modal. Subsequent runs persist bounded
+operation/method/HTTP-status/timestamp/actor diagnostics without credential-bearing
+URLs, identifiers, headers or bodies.
+
+Evidence remains in the platform scenario's own `app-office/outcomes/` directory,
+with trace and video disabled. The restart run is preserved under
+`app-office/outcomes/core-restart-reopen-resource503/`. Revocation acceptance
+remains incomplete. An earlier non-restart run
+also encountered a transient HTTP 500 on fresh launch; its subsequent relaunch
+before revocation failed, so that run did not exercise revocation.
+Search-backed directory UI is explicitly outside this isolated-profile run.
+
+The matching supervised `app-office-operations` run passed all six outcomes:
+signed operations consent, a confirmed source save, CODE-driven rename with
+stable WOPI identity, real Save As, exact server-selected target continuation,
+and subsequent target-only persistence. Continuation retained the same CODE
+iframe and browser document without another launch or document-form submission.
+Authenticated Node downloads contained all three markers in the target DOCX;
+the source contained its original marker but neither later target marker.
+
+The successful run and sanitized transport/message/control categories are
+preserved under
+`app-office-operations/outcomes/supervised-saveas-target-persistence-pass/`.
+An earlier run returned `storage / savefailed` with derived receipt polls at
+204. That failure did not recur in the latest supervised run, but its root cause
+has not been established; this success does not prove every intermittent
+backend failure is resolved.
+
 ## Platform-owned cutover — 2026-09-27
 
 The historical evidence below describes the removed Office-owned WOPI/synthetic
