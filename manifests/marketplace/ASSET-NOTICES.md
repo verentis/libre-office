@@ -46,3 +46,10 @@ description and avoid any claim of TDF endorsement. Any subsequently authorized
 asset must retain its complete mark, trademark symbol, colors and aspect ratio
 with neutral padding, and carry its copyright attribution/license in the packaged
 README. No official asset was copied into this package.
+
+## Manifest icons
+
+`../icons/office.svg`, `document.svg`, `spreadsheet.svg`, `slides.svg` and `drawing.svg` are the LibreOffice,
+Writer, Calc, Impress and Draw marks from the theSVG Color set (https://github.com/glincker/thesvg, MIT),
+retrieved via Iconify (`thesvg-color:libreoffice*`). The MIT license covers the SVG files only; the
+LibreOffice marks remain trademarks of The Document Foundation and are used to identify file types.
