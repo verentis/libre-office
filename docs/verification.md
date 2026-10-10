@@ -120,10 +120,9 @@ ordinary Node upload/download to make the scenario pass.
 The wrapper now consumes SDK-owned exact-origin/window validation, host-document
 binding and durable generation/correlation receipt checks. CODE URL/format checks,
 message translation and internal coauthoring remain provider-specific.
-The integrity-pinned SDK archive is
-`verentis-sdk-0.2.0-dd1dccceebef.tgz`, built after merging current SDK `main` and
-shared byte-for-byte with Excalidraw; older archives below identify historical
-verification inputs, not the current dependency.
+The wrapper now consumes integrity-pinned published package
+`@verentis/sdk@0.2.5`. Older archive names below identify historical verification
+inputs only and are not current dependencies.
 
 Local checks passed: Nuxt typecheck, all 36 Office unit checks, base/local/production
 package validation and offline packing, deployment rendering, and the built
@@ -282,7 +281,8 @@ and 7 Chromium tests. The recovery-denial mock now succeeds without touching a
 reconstruction callback. Malformed, expired, credential-bearing and wrong-scope
 continuations fail closed; Chromium verifies the target deadline independently
 of the retained source launch and preserves later edits through rebinding.
-The vendor archive is `verentis-sdk-0.2.0-b72fdeb675b6.tgz`.
+The historical verification used `verentis-sdk-0.2.0-b72fdeb675b6.tgz`; the
+current dependency is the published `@verentis/sdk@0.2.5` package.
 
 These are local boundary checks, not a new real-key-rotation or warm acceptance
 claim. The parent owns the backend expiry DTO field and warm execution.
