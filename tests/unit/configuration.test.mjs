@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { parse } from 'yaml';
 import { render } from '../../deploy/render.mjs';
 
@@ -11,17 +10,16 @@ test('deployment rejects omitted or non-string processing region', () => {
     }
 });
 
-test('local SDK is integrity-pinned and available to standalone checkout and Docker builds', () => {
+test('published SDK is exact-versioned and integrity-pinned for standalone and Docker builds', () => {
     const editor = JSON.parse(readFileSync('apps/editor/package.json', 'utf8'));
     const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
-    const archive = editor.dependencies['@verentis/sdk'].replace('file:../../', '');
-    assert.match(archive, /^vendor\/sdk\/verentis-sdk-0\.2\.0-[a-f0-9]{12}\.tgz$/);
+    assert.equal(editor.dependencies['@verentis/sdk'], '0.2.5');
     const dependency = lock.packages['node_modules/@verentis/sdk'];
-    assert.equal(dependency.resolved, `file:${archive}`);
-    assert.equal(dependency.integrity, `sha512-${createHash('sha512').update(readFileSync(archive)).digest('base64')}`);
+    assert.equal(dependency.version, '0.2.5');
+    assert.equal(dependency.resolved, 'https://registry.npmjs.org/@verentis/sdk/-/sdk-0.2.5.tgz');
+    assert.match(dependency.integrity, /^sha512-/);
     const dockerfile = readFileSync('deploy/editor.Dockerfile', 'utf8');
-    assert.ok(dockerfile.indexOf('COPY vendor/sdk/ vendor/sdk/') >= 0);
-    assert.ok(dockerfile.indexOf('COPY vendor/sdk/ vendor/sdk/') < dockerfile.indexOf('RUN npm ci'));
+    assert.doesNotMatch(dockerfile, /vendor\/sdk/);
 });
 
 test('checks and release preparation remain secret-free and do not publish/import/deploy', () => {

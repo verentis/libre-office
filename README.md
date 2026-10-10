@@ -106,7 +106,7 @@ Private until a separate public-readiness review authorizes visibility.
 - `manifests` — signed-package declarations and environment origins.
 - `tests` — browser boundaries, package/deployment contracts and framing checks.
 - `deploy`, `k8s` — wrapper/CODE build and workload topology.
-- `vendor/sdk` — source-built SDK package used by the wrapper.
+- `apps/editor` consumes the published `@verentis/sdk` package from npm.
 
 ## Deployment
 
