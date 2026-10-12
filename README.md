@@ -21,13 +21,15 @@ Normal applications accessing workspace APIs continue to require normal OAuth.
 ### AI agent read tool
 
 `spec.tools.read_document` (`POST /agent/read-document`) is the agent's read tool for
-text documents and spreadsheets. `spec.actor` names it as the `read-tool` of a
+text documents, spreadsheets and presentations. `spec.actor` names it as the `read-tool` of a
 `document` surface. The platform calls it with a token minted for the calling user
 and capped to `node.file.read`. The wrapper downloads the saved file from the
 platform (`NUXT_PLATFORM_API_URL`, default `NUXT_PUBLIC_WOPI_ORIGIN`), converts it
 with CODE's `/cool/convert-to`, and returns text. It stores nothing. Writer formats
 become plain text. Calc formats become tab-separated rows, under a `## <sheet>`
-heading per sheet. The wrapper calls CODE directly on `NUXT_CODE_URL`. CODE
+heading per sheet. Impress formats go through flat ODP (`fodp`, since Impress has no
+text export) and become `## Slide N` sections with speaker notes. Drawings (Visio, odg)
+are not readable yet. The wrapper calls CODE directly on `NUXT_CODE_URL`. CODE
 accepts `convert-to` only from private addresses (`net.post_allow`) and checks every
 `X-Forwarded-For` hop, so calls through the public `office-code` ingress get 403.
 That relies on the ingress seeing real client IPs (`externalTrafficPolicy: Local`);

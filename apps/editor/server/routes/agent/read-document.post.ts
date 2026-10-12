@@ -1,5 +1,6 @@
 import {
-    MAX_SOURCE_BYTES, failure, rawFileUrl, readableKind, sheetHtmlToText, truncate, validWorkspacePath
+    CONVERT_TO, MAX_SOURCE_BYTES, failure, rawFileUrl, readableKind, sheetHtmlToText, slidesFodpToText, truncate,
+    validWorkspacePath
 } from '../../../shared/agent-read.mjs';
 
 /**
@@ -7,6 +8,12 @@ import {
  * capped to node.file.read. Office downloads the saved file with that token, converts it with its own CODE server
  * and returns text. Nothing is stored; the token is used once and only against the platform origin.
  */
+const NOTES = {
+    text: 'Plain text of the document, without formatting. This is the last saved version.',
+    sheet: 'Rows are tab-separated; with several sheets each starts with "## <name>". This is the last saved version.',
+    slides: 'Each slide starts with "## Slide N"; speaker notes follow "Notes:". This is the last saved version.'
+} as const;
+
 export default defineEventHandler(async (event) => {
     setHeader(event, 'Cache-Control', 'no-store');
     const authorization = getHeader(event, 'authorization');
@@ -19,7 +26,7 @@ export default defineEventHandler(async (event) => {
     const path = body.path;
     if (!validWorkspacePath(path)) return failure('invalid_path', 'Send an absolute workspace path such as /reports/q1.docx.');
     const kind = readableKind(path);
-    if (!kind) return failure('unsupported_format', 'Libre Office reads text documents and spreadsheets; read plain-text files with fs_read.');
+    if (!kind) return failure('unsupported_format', 'Libre Office reads text documents, spreadsheets and presentations; read plain-text files with fs_read.');
 
     const config = useRuntimeConfig(event);
     const platformUrl = config.platformApiUrl || config.public.wopiOrigin;
@@ -45,7 +52,7 @@ export default defineEventHandler(async (event) => {
     form.append('data', new Blob([bytes]), path.split('/').pop()!);
     let converted: Response;
     try {
-        converted = await fetch(new URL(`/cool/convert-to/${kind === 'sheet' ? 'html' : 'txt'}`, config.codeUrl), {
+        converted = await fetch(new URL(`/cool/convert-to/${CONVERT_TO[kind]}`, config.codeUrl), {
             method: 'POST', body: form, redirect: 'error', signal: AbortSignal.timeout(60000)
         });
     } catch {
@@ -53,16 +60,16 @@ export default defineEventHandler(async (event) => {
     }
     if (!converted.ok) return failure('conversion_failed', `The document could not be converted (${converted.status}).`);
     const output = await converted.text();
-    const text = kind === 'sheet' ? sheetHtmlToText(output) : output.replace(/^\uFEFF/, '').trim();
+    const text = kind === 'sheet' ? sheetHtmlToText(output)
+        : kind === 'slides' ? slidesFodpToText(output)
+            : output.replace(/^\uFEFF/, '').trim();
     const { content, truncated } = truncate(text);
     return {
         ok: true,
         path,
-        format: kind === 'sheet' ? 'sheet-rows' : 'text',
+        format: { text: 'text', sheet: 'sheet-rows', slides: 'slides' }[kind],
         content,
         truncated,
-        note: kind === 'sheet'
-            ? 'Rows are tab-separated; with several sheets each starts with "## <name>". This is the last saved version.'
-            : 'Plain text of the document, without formatting. This is the last saved version.'
+        note: NOTES[kind]
     };
 });

@@ -514,14 +514,16 @@ spec:
       - mime-type: application/vnd.sun.xml.draw.template
         extension: .std
         editable: false
-  # Agent tools: read_document lets the AI agent read a document or spreadsheet headlessly with the
+  # Agent tools: read_document lets the AI agent read a document, spreadsheet or presentation headlessly with the
   # user's consented node.file.read access. Office converts the saved file with its own CODE server.
   tools:
     - key: read_document
       title: Read document
       description: >-
-        Reads a workspace text document or spreadsheet (Word, OpenDocument, RTF, Excel and similar) as plain text.
-        Spreadsheets return tab-separated rows, each sheet under a "## <name>" heading when there are several. Reads the last saved version.
+        Reads a workspace text document, spreadsheet or presentation (Word, Excel, PowerPoint, OpenDocument, RTF and
+        similar) as plain text. Spreadsheets return tab-separated rows, each sheet under a "## <name>" heading when there
+        are several. Presentations return each slide under "## Slide N", with speaker notes after "Notes:". Reads the
+        last saved version.
       input-schema:
         type: object
         required: [path]
@@ -541,7 +543,7 @@ spec:
     surfaces:
       - kind: document
         read-tool: read_document
-        extensions: [.docx, .doc, .docm, .dot, .dotx, .dotm, .odt, .ott, .fodt, .odm, .otm, .oth, .rtf, .xlsx, .xls, .xlsm, .xlsb, .xla, .xltx, .xltm, .ods, .ots, .fods, .dif, .slk, .dbf, .pub, .sxw, .stw, .sxg, .sxc, .stc]
+        extensions: [.docx, .doc, .docm, .dot, .dotx, .dotm, .odt, .ott, .fodt, .odm, .otm, .oth, .rtf, .xlsx, .xls, .xlsm, .xlsb, .xla, .xltx, .xltm, .ods, .ots, .fods, .dif, .slk, .dbf, .pptx, .ppt, .pptm, .pot, .potx, .potm, .ppsx, .odp, .otp, .fodp, .pub, .sxw, .stw, .sxg, .sxc, .stc, .sxi, .sti]
   sandbox:
     allow-scripts: true
     allow-same-origin: true

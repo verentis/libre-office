@@ -5,12 +5,16 @@ const PLAIN = new Set(['txt', 'md', 'csv', 'tsv']);
 export const MAX_SOURCE_BYTES = 52428800;
 export const MAX_TEXT_CHARS = 200000;
 
-/** How the agent read tool turns a file into text: 'text' (Writer → txt), 'sheet' (Calc → html → rows) or null. */
+/**
+ * How the agent read tool turns a file into text: 'text' (Writer → txt), 'sheet' (Calc → html → rows),
+ * 'slides' (Impress → flat ODP → slide text) or null.
+ */
 export function readableKind(path) {
     const extension = /\.([A-Za-z0-9]+)$/.exec(path)?.[1]?.toLowerCase();
     const format = extension && !PLAIN.has(extension) ? formats[extension] : undefined;
     if (format?.icon === '#doc') return 'text';
     if (format?.icon === '#sheet') return 'sheet';
+    if (format?.icon === '#slides') return 'slides';
     return null;
 }
 
@@ -56,6 +60,47 @@ export function sheetHtmlToText(html) {
         .filter((line, index, lines) => line !== '' || (index > 0 && lines[index - 1] !== ''))
         .join('\n')
         .trim();
+}
+
+/** The CODE convert-to target for each readable kind. */
+export const CONVERT_TO = { text: 'txt', sheet: 'html', slides: 'fodp' };
+
+// ODF collapses raw whitespace (including the export's indentation) to one space; only elements break lines.
+const odfText = xml => decode(xml
+    .replace(/\s+/g, ' ')
+    .replace(/<table:table-cell\b[^>]*>([\s\S]*?)<\/table:table-cell>/g,
+        (_, cell) => `${cell.replace(/<\/text:(?:p|h)>|<text:line-break\b[^>]*\/>/g, ' ')}</table:table-cell>`)
+    .replace(/<text:s\b[^>]*?(?:text:c="(\d+)")?[^>]*\/>/g, (_, count) => ' '.repeat(Math.min(Number(count ?? 1), 64)))
+    .replace(/<text:tab\b[^>]*\/>/g, '\t')
+    .replace(/<text:line-break\b[^>]*\/>/g, '\n')
+    .replace(/<\/text:(?:p|h)>/g, '\n')
+    .replace(/<\/table:table-cell>/g, '\t')
+    .replace(/<\/table:table-row>/g, '\n')
+    .replace(/<[^>]+>/g, ''))
+    .split('\n')
+    .map(line => line.split('\t').map(cell => cell.trim()).join('\t').replace(/\t+$/, ''))
+    .filter(line => line.trim() !== '')
+    .join('\n');
+
+/**
+ * Impress's flat ODP export flattened to "## Slide N" sections, with speaker notes under "Notes:". Master pages,
+ * embedded images and page-number/date/header/footer placeholders are dropped.
+ */
+export function slidesFodpToText(xml) {
+    const start = xml.indexOf('<office:presentation');
+    const end = xml.indexOf('</office:presentation>');
+    if (start < 0 || end < start) return '';
+    const body = xml.slice(start, end)
+        .replace(/<office:binary-data>[\s\S]*?<\/office:binary-data>/g, '')
+        .replace(/<(svg:title|svg:desc)\b[^>]*>[\s\S]*?<\/\1>/g, '')
+        .replace(/<draw:frame\b[^>]*presentation:class="(?:page-number|date-time|header|footer)"[^>]*>[\s\S]*?<\/draw:frame>/g, '');
+    const slides = [...body.matchAll(/<draw:page\b[^>]*>([\s\S]*?)<\/draw:page>/g)].map((match, index) => {
+        const notesMatch = /<presentation:notes\b[^>]*>([\s\S]*?)<\/presentation:notes>/.exec(match[1]);
+        const slide = odfText(notesMatch ? match[1].replace(notesMatch[0], '') : match[1]);
+        const notes = notesMatch ? odfText(notesMatch[1]) : '';
+        return [`## Slide ${index + 1}`, slide, notes && `Notes:\n${notes}`].filter(Boolean).join('\n');
+    });
+    return slides.join('\n\n');
 }
 
 export function truncate(text) {

@@ -3,15 +3,17 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { parse } from 'yaml';
 import {
-    rawFileUrl, readableKind, sheetHtmlToText, truncate, validWorkspacePath, MAX_TEXT_CHARS
+    rawFileUrl, readableKind, sheetHtmlToText, slidesFodpToText, truncate, validWorkspacePath, MAX_TEXT_CHARS
 } from '../../apps/editor/shared/agent-read.mjs';
 
-test('reads text documents and spreadsheets, and leaves plain text and slides alone', () => {
+test('reads documents, spreadsheets and presentations, and leaves plain text and drawings alone', () => {
     assert.equal(readableKind('/a/Brief.DOCX'), 'text');
     assert.equal(readableKind('/a/notes.odt'), 'text');
     assert.equal(readableKind('/a/budget.xlsx'), 'sheet');
     assert.equal(readableKind('/a/budget.ods'), 'sheet');
-    for (const path of ['/a/readme.md', '/a/notes.txt', '/a/rows.csv', '/a/rows.tsv', '/a/deck.pptx', '/a/archive', '/a/x.zip'])
+    assert.equal(readableKind('/a/deck.pptx'), 'slides');
+    assert.equal(readableKind('/a/deck.odp'), 'slides');
+    for (const path of ['/a/readme.md', '/a/notes.txt', '/a/rows.csv', '/a/rows.tsv', '/a/plan.vsdx', '/a/archive', '/a/x.zip'])
         assert.equal(readableKind(path), null, path);
 });
 
@@ -39,6 +41,31 @@ test('flattens Calc HTML into sheet headings and tab-separated rows', () => {
     assert.equal(sheetHtmlToText(workbook), '## Budget\nArea\tSpend & tax\nNorth\t12\n\t24\n\n## Notes\nDone <ok>!');
     // A single sheet has no overview or headings.
     assert.equal(sheetHtmlToText('<table><tr><td>Only</td><td>row</td></tr></table>'), 'Only\trow');
+});
+
+test('flattens Impress flat ODP into slides with speaker notes', () => {
+    // The shape CODE's convert-to/fodp returns: pretty-printed, with master pages, images and placeholders.
+    const fodp = `<office:document><office:master-styles><style:master-page>
+        <draw:frame presentation:class="title"><draw:text-box><text:p>Master title</text:p></draw:text-box></draw:frame>
+        </style:master-page></office:master-styles><office:body><office:presentation>
+        <draw:page draw:name="Season plan">
+          <draw:frame presentation:class="title"><draw:text-box>
+            <text:p><text:span>Season</text:span><text:s/><text:span>plan</text:span></text:p></draw:text-box></draw:frame>
+          <draw:frame presentation:class="outline"><draw:text-box><text:list><text:list-item>
+            <text:p><text:span>Plant &amp; water</text:span></text:p></text:list-item></text:list></draw:text-box></draw:frame>
+          <draw:frame presentation:class="page-number"><draw:text-box><text:p><text:page-number>3</text:page-number></text:p></draw:text-box></draw:frame>
+          <draw:frame><draw:image><office:binary-data>VkNMTVRGAQAx</office:binary-data></draw:image><svg:desc>A logo</svg:desc></draw:frame>
+          <presentation:notes><draw:page-thumbnail/><draw:frame presentation:class="notes"><draw:text-box>
+            <text:p>Mention the</text:p><text:p>budget</text:p></draw:text-box></draw:frame></presentation:notes>
+        </draw:page>
+        <draw:page draw:name="page2"><draw:frame><table:table><table:table-row>
+          <table:table-cell><text:p>Area</text:p></table:table-cell><table:table-cell><text:p>Spend</text:p><text:p>(R)</text:p></table:table-cell>
+          </table:table-row><table:table-row><table:table-cell><text:p>North</text:p></table:table-cell>
+          <table:table-cell><text:p>12</text:p></table:table-cell></table:table-row></table:table></draw:frame></draw:page>
+        </office:presentation></office:body></office:document>`;
+    assert.equal(slidesFodpToText(fodp),
+        '## Slide 1\nSeason plan\nPlant & water\nNotes:\nMention the\nbudget\n\n## Slide 2\nArea\tSpend (R)\nNorth\t12');
+    assert.equal(slidesFodpToText('<office:document/>'), '');
 });
 
 test('caps returned text', () => {
