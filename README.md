@@ -35,6 +35,24 @@ accepts `convert-to` only from private addresses (`net.post_allow`) and checks e
 That relies on the ingress seeing real client IPs (`externalTrafficPolicy: Local`);
 an ingress that SNATs clients to a private address would expose `convert-to`.
 
+### AI agent live channel
+
+`spec.actor.live-channel: agent` lets the agent act in the document the user has open,
+while their tab follows the agent. The wrapper handles the `agent` host message
+(`shared/agent-live.mjs`) and answers only for the open document's path; any other path
+gets `not_open`. A Save As target also gets `not_open`, because its path isn't known.
+- `read` sends CODE `Action_Copy` (text/plain) and returns the user's selection. With
+  nothing selected it replies `use_headless`, so the platform falls back to `read_document`.
+- `apply` takes up to 100 `{ op: insert_text, text }` operations (15,000 characters in
+  total). Each one is sent as `Action_Paste`, which inserts it at the cursor and replaces
+  any selection. Nothing is saved: the user reviews the change and saves it.
+- Read-only documents refuse `apply` with `read_only`.
+- While the editor is loading, reloading, renewing authorization or saving, the wrapper
+  replies `not_ready`.
+
+The wrapper never selects text or saves on the agent's behalf, so it can't read the
+whole open document with its unsaved edits.
+
 The public package identity is `verentis/libre-office`, displayed as **Libre
 Office** in base, local and production packages. This is a new Marketplace
 identity, not a migration of existing `verentis/office` installations. Publish,

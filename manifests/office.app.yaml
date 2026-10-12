@@ -539,7 +539,16 @@ spec:
         type: app-backend
         operation: /agent/read-document
         method: POST
+  # Live channel: while the user has a document open and follows the agent, app_read returns the user's selection
+  # and app_apply inserts text at the cursor. Edits stay unsaved for the user to review.
+  messages:
+    - channel: agent
+      description: >-
+        Acts in the open document for the agent. read returns the selected text (nothing selected: use_headless).
+        apply takes operations [{ op: insert_text, text }] and pastes each at the cursor, replacing the selection;
+        the document is not saved.
   actor:
+    live-channel: agent
     surfaces:
       - kind: document
         read-tool: read_document

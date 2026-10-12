@@ -4,6 +4,8 @@ import { exactHttpsOrigin } from '../shared/frame-policy.mjs';
 import { childMessage, isPotentialParentMessage, nextDirty, validateLiveLaunch, validateLiveContinuation,
     isDerivedSaveResponse, editorReloadStarted, saveAsDraft, saveAsCommand, saveConfirmed, sessionStatusProblem,
     type LiveLaunch, type LiveDocument, type SaveCheckpoint } from '../shared/boundaries.mjs';
+import { LIVE_CHANNEL, SELECTION_TIMEOUT_MS, liveRequest, insertions, selectionReply, appliedReply,
+    unavailableReply } from '../shared/agent-live.mjs';
 
 const config = useRuntimeConfig().public;
 const status = ref('Loading Office…');
@@ -49,6 +51,9 @@ let queuedSaveAs: ReturnType<typeof saveAsCommand> | null = null;
 let editorModified = false;
 let destroyed = false;
 let parentOrigin = '';
+let openPath = '';
+let pendingCopy: ((content: unknown) => void) | undefined;
+let copyQueue: Promise<unknown> = Promise.resolve();
 
 function reportProblem(message: string) {
     needsAttention.value = true;
@@ -74,6 +79,10 @@ function guardParent(event: MessageEvent) {
 function onChild(event: MessageEvent) {
     const message = childMessage(event, frame.value?.contentWindow ?? null, config.editorOrigin);
     if (!message) return;
+    if (message.MessageId === 'Action_Copy_Resp') {
+        pendingCopy?.(message.Values?.content);
+        return;
+    }
     if (editorReloadStarted(message)) {
         ready.value = false;
         saving.value = false;
@@ -150,6 +159,37 @@ function onChild(event: MessageEvent) {
         if (message.Values?.success !== true) needsAttention.value = true;
     }
 }
+function postToEditor(MessageId: string, Values: Record<string, unknown>) {
+    frame.value?.contentWindow?.postMessage(JSON.stringify({ MessageId, SendTime: Date.now(), Values }), config.editorOrigin);
+}
+// CODE answers Action_Copy with empty content when nothing is selected; the timeout covers a lost answer.
+function readSelection(): Promise<unknown> {
+    const next = copyQueue.then(() => new Promise<unknown>(resolve => {
+        const done = (content: unknown) => { clearTimeout(timer); pendingCopy = undefined; resolve(content); };
+        const timer = setTimeout(() => done(null), SELECTION_TIMEOUT_MS);
+        pendingCopy = done;
+        postToEditor('Action_Copy', { Mimetype: 'text/plain;charset=utf-8' });
+    }));
+    copyQueue = next.catch(() => undefined);
+    return next;
+}
+// Agent requests on the live channel (spec.actor.live-channel): read the selection, or insert text unsaved.
+async function onAgentMessage(payload: unknown) {
+    const request = liveRequest(payload, openPath);
+    if (request.reply) return request.reply;
+    const editable = !documentState.value?.readOnly && !statusReadOnly.value;
+    const usable = ready.value && !expired.value && !continuationRequired.value && !continuing.value &&
+        !saveAsPending.value && !destroyed && !!frame.value?.contentWindow;
+    if (request.action === 'read') {
+        if (!usable) return unavailableReply({ readOnly: false, ready: ready.value });
+        return selectionReply(request.path, await readSelection(), dirty.value);
+    }
+    if (!editable || !usable || saving.value) return unavailableReply({ readOnly: !editable, ready: ready.value });
+    const planned = insertions(request.operations);
+    if (planned.reply) return planned.reply;
+    for (const text of planned.texts) postToEditor('Action_Paste', { Mimetype: 'text/plain;charset=utf-8', Data: text });
+    return appliedReply(request.path, planned.texts.length);
+}
 function beforeUnload(event: BeforeUnloadEvent) {
     if (dirty.value) { event.preventDefault(); event.returnValue = ''; }
 }
@@ -163,6 +203,7 @@ onMounted(async () => {
             // SDK sees it, including hosts with a no-referrer policy.
             parentOrigin = exactHttpsOrigin(document.querySelector('meta[name="verentis-parent-origin"]')?.getAttribute('content') ?? '');
             bridge = new Bridge(parentOrigin);
+            bridge.onHostMessage(LIVE_CHANNEL, onAgentMessage);
             bridge.sendReady([]);
             const initialized = await Promise.race([
                 bridge.waitForInit(),
@@ -170,6 +211,7 @@ onMounted(async () => {
             ]);
             clearTimeout(handshakeTimeout);
             hostReady = true;
+            openPath = initialized.context.file?.path ?? '';
             bridge.setTitle('Office');
             bridge.setDirty(dirty.value);
             saveAction = bridge.registerAction({
@@ -201,6 +243,7 @@ onBeforeUnmount(() => {
     clearTimeout(saveTimeout);
     clearTimeout(saveAsTimeout);
     clearTimeout(statusTimer);
+    pendingCopy?.(null);
     bridge?.destroy();
     window.removeEventListener('message', guardParent, true);
     window.removeEventListener('message', onChild);
@@ -302,6 +345,8 @@ async function continueDerivedLaunch(current: LiveDocument) {
         const response = await bridge.requestWopiContinuation();
         if (destroyed || documentState.value !== current) return;
         const next = validateLiveContinuation(response, current);
+        // The workspace path of a Save As target isn't known here; the agent works with it headlessly.
+        if (next.nodeId !== current.nodeId) openPath = '';
         documentState.value = next;
         saveAsOpen.value = false;
         saveAsPending.value = false;
