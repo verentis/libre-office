@@ -6,7 +6,7 @@ metadata:
   display-name: Libre Office
   description: View and edit workspace documents, spreadsheets and presentations with the Collabora editor.
   icon: "#app"
-  version: 0.1.11
+  version: 0.1.12
   author: Verentis
   labels:
     integration-status: consent-required
@@ -514,6 +514,45 @@ spec:
       - mime-type: application/vnd.sun.xml.draw.template
         extension: .std
         editable: false
+  # Agent tools: read_document lets the AI agent read a document, spreadsheet or presentation headlessly with the
+  # user's consented node.file.read access. Office converts the saved file with its own CODE server.
+  tools:
+    - key: read_document
+      title: Read document
+      description: >-
+        Reads a workspace text document, spreadsheet or presentation (Word, Excel, PowerPoint, OpenDocument, RTF and
+        similar) as plain text. Spreadsheets return tab-separated rows, each sheet under a "## <name>" heading when there
+        are several. Presentations return each slide under "## Slide N", with speaker notes after "Notes:". Reads the
+        last saved version.
+      input-schema:
+        type: object
+        required: [path]
+        properties:
+          path:
+            type: string
+            description: Absolute workspace path of the file, for example /reports/q1.docx.
+        additionalProperties: true
+      effect: read
+      scopes: [node.file.read]
+      timeout-seconds: 120
+      implementation:
+        type: app-backend
+        operation: /agent/read-document
+        method: POST
+  # Live channel: while the user has a document open and follows the agent, app_read returns the user's selection
+  # and app_apply inserts text at the cursor. Edits stay unsaved for the user to review.
+  messages:
+    - channel: agent
+      description: >-
+        Acts in the open document for the agent. read returns the selected text (nothing selected: use_headless).
+        apply takes operations [{ op: insert_text, text }] and pastes each at the cursor, replacing the selection;
+        the document is not saved.
+  actor:
+    live-channel: agent
+    surfaces:
+      - kind: document
+        read-tool: read_document
+        extensions: [.docx, .doc, .docm, .dot, .dotx, .dotm, .odt, .ott, .fodt, .odm, .otm, .oth, .rtf, .xlsx, .xls, .xlsm, .xlsb, .xla, .xltx, .xltm, .ods, .ots, .fods, .dif, .slk, .dbf, .pptx, .ppt, .pptm, .pot, .potx, .potm, .ppsx, .odp, .otp, .fodp, .pub, .sxw, .stw, .sxg, .sxc, .stc, .sxi, .sti]
   sandbox:
     allow-scripts: true
     allow-same-origin: true

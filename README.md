@@ -18,6 +18,41 @@ No Office OAuth client ID/secret, private signing key or storage credentials are
 needed. Third-party WOPI applications use the same installation/launch contract.
 Normal applications accessing workspace APIs continue to require normal OAuth.
 
+### AI agent read tool
+
+`spec.tools.read_document` (`POST /agent/read-document`) is the agent's read tool for
+text documents, spreadsheets and presentations. `spec.actor` names it as the `read-tool` of a
+`document` surface. The platform calls it with a token minted for the calling user
+and capped to `node.file.read`. The wrapper downloads the saved file from the
+platform (`NUXT_PLATFORM_API_URL`, default `NUXT_PUBLIC_WOPI_ORIGIN`), converts it
+with CODE's `/cool/convert-to`, and returns text. It stores nothing. Writer formats
+become plain text. Calc formats become tab-separated rows, under a `## <sheet>`
+heading per sheet. Impress formats go through flat ODP (`fodp`, since Impress has no
+text export) and become `## Slide N` sections with speaker notes. Drawings (Visio, odg)
+are not readable yet. The wrapper calls CODE directly on `NUXT_CODE_URL`. CODE
+accepts `convert-to` only from private addresses (`net.post_allow`) and checks every
+`X-Forwarded-For` hop, so calls through the public `office-code` ingress get 403.
+That relies on the ingress seeing real client IPs (`externalTrafficPolicy: Local`);
+an ingress that SNATs clients to a private address would expose `convert-to`.
+
+### AI agent live channel
+
+`spec.actor.live-channel: agent` lets the agent act in the document the user has open,
+while their tab follows the agent. The wrapper handles the `agent` host message
+(`shared/agent-live.mjs`) and answers only for the open document's path; any other path
+gets `not_open`. A Save As target also gets `not_open`, because its path isn't known.
+- `read` sends CODE `Action_Copy` (text/plain) and returns the user's selection. With
+  nothing selected it replies `use_headless`, so the platform falls back to `read_document`.
+- `apply` takes up to 100 `{ op: insert_text, text }` operations (15,000 characters in
+  total). Each one is sent as `Action_Paste`, which inserts it at the cursor and replaces
+  any selection. Nothing is saved: the user reviews the change and saves it.
+- Read-only documents refuse `apply` with `read_only`.
+- While the editor is loading, reloading, renewing authorization or saving, the wrapper
+  replies `not_ready`.
+
+The wrapper never selects text or saves on the agent's behalf, so it can't read the
+whole open document with its unsaved edits.
+
 The public package identity is `verentis/libre-office`, displayed as **Libre
 Office** in base, local and production packages. This is a new Marketplace
 identity, not a migration of existing `verentis/office` installations. Publish,
