@@ -28,10 +28,10 @@ platform (`NUXT_PLATFORM_API_URL`, default `NUXT_PUBLIC_WOPI_ORIGIN`), converts 
 with CODE's `/cool/convert-to`, and returns text. It stores nothing. Writer formats
 become plain text. Calc formats become tab-separated rows, under a `## <sheet>`
 heading per sheet. The wrapper calls CODE directly on `NUXT_CODE_URL`. CODE
-accepts `convert-to` only from private addresses (`net.post_allow`), but the public
-`office-code` ingress forwards `/` from a private address. Restrict `/cool/convert-to`
-at the ingress before relying on that. Live reads and edits of the open document
-(Collabora PostMessage) are not built yet.
+accepts `convert-to` only from private addresses (`net.post_allow`) and checks every
+`X-Forwarded-For` hop, so calls through the public `office-code` ingress get 403.
+That relies on the ingress seeing real client IPs (`externalTrafficPolicy: Local`);
+an ingress that SNATs clients to a private address would expose `convert-to`.
 
 The public package identity is `verentis/libre-office`, displayed as **Libre
 Office** in base, local and production packages. This is a new Marketplace
