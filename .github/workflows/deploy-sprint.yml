@@ -101,7 +101,7 @@ jobs:
       package-root: manifests
       manifest: office.app.yaml
       overlay: environments/production.yaml
-      visibility: Private
+      visibility: Public
     secrets:
       sprint-api-url: ${{ secrets.SPRINT_API_URL }}
       publisher-signing-key: ${{ secrets.PUBLISHER_SIGNING_KEY }}
