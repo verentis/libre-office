@@ -4,9 +4,10 @@ metadata:
   name: libre-office
   package-id: libre-office
   display-name: Libre Office
-  description: View and edit workspace documents, spreadsheets and presentations with the Collabora editor.
+  description: View and edit workspace documents, spreadsheets and presentations
+    with the Collabora editor.
   icon: "#app"
-  version: 0.1.12
+  version: 0.1.24
   author: Verentis
   labels:
     integration-status: consent-required
@@ -14,17 +15,24 @@ marketplace:
   logo: ./marketplace/logo.svg
   hero:
     source: ./marketplace/hero.svg
-    alt: "Subdued layered paper-like planes on a tonal background, with a quiet centre for the marketplace title, details and install controls."
+    alt: "Subdued layered paper-like planes on a tonal background, with a quiet
+      centre for the marketplace title, details and install controls."
   images:
     - source: ./marketplace/calc.png
-      alt: Actual Collabora spreadsheet editor displaying an original synthetic season budget with areas, budgets and remaining amounts.
-      caption: "Spreadsheet editing in Collabora: original synthetic season budget, not customer data."
+      alt: Actual Collabora spreadsheet editor displaying an original synthetic season
+        budget with areas, budgets and remaining amounts.
+      caption: "Spreadsheet editing in Collabora: original synthetic season budget,
+        not customer data."
     - source: ./marketplace/writer.png
-      alt: Actual Collabora document editor displaying an original synthetic planning brief with headings and paragraphs.
-      caption: "Document editing in Collabora: original synthetic planning brief, not a desktop LibreOffice screenshot."
+      alt: Actual Collabora document editor displaying an original synthetic planning
+        brief with headings and paragraphs.
+      caption: "Document editing in Collabora: original synthetic planning brief, not
+        a desktop LibreOffice screenshot."
     - source: ./marketplace/impress.png
-      alt: Actual Collabora presentation editor displaying an original synthetic season-planning slide.
-      caption: "Presentation editing in Collabora: original synthetic slide, captured from the real browser editor."
+      alt: Actual Collabora presentation editor displaying an original synthetic
+        season-planning slide.
+      caption: "Presentation editing in Collabora: original synthetic slide, captured
+        from the real browser editor."
   readme: ./marketplace/README.md
 
 # Shared icons, referenced as "#key" here and in environments/*.yaml (overlays deep-merge onto this map).
@@ -520,20 +528,22 @@ spec:
     - key: read_document
       title: Read document
       description: >-
-        Reads a workspace text document, spreadsheet or presentation (Word, Excel, PowerPoint, OpenDocument, RTF and
-        similar) as plain text. Spreadsheets return tab-separated rows, each sheet under a "## <name>" heading when there
-        are several. Presentations return each slide under "## Slide N", with speaker notes after "Notes:". Reads the
-        last saved version.
+        Reads a workspace text document, spreadsheet or presentation (Word,
+        Excel, PowerPoint, OpenDocument, RTF and similar) as plain text.
+        Spreadsheets return tab-separated rows, each sheet under a "## <name>"
+        heading when there are several. Presentations return each slide under
+        "## Slide N", with speaker notes after "Notes:". Reads the last saved
+        version.
       input-schema:
         type: object
-        required: [path]
+        required: [ path ]
         properties:
           path:
             type: string
             description: Absolute workspace path of the file, for example /reports/q1.docx.
         additionalProperties: true
       effect: read
-      scopes: [node.file.read]
+      scopes: [ node.file.read ]
       timeout-seconds: 120
       implementation:
         type: app-backend
@@ -544,15 +554,62 @@ spec:
   messages:
     - channel: agent
       description: >-
-        Acts in the open document for the agent. read returns the selected text (nothing selected: use_headless).
-        apply takes operations [{ op: insert_text, text }] and pastes each at the cursor, replacing the selection;
-        the document is not saved.
+        Acts in the open document for the agent. read returns the selected text
+        (nothing selected: use_headless). apply takes operations [{ op:
+        insert_text, text }] and pastes each at the cursor, replacing the
+        selection; the document is not saved.
   actor:
     live-channel: agent
     surfaces:
       - kind: document
         read-tool: read_document
-        extensions: [.docx, .doc, .docm, .dot, .dotx, .dotm, .odt, .ott, .fodt, .odm, .otm, .oth, .rtf, .xlsx, .xls, .xlsm, .xlsb, .xla, .xltx, .xltm, .ods, .ots, .fods, .dif, .slk, .dbf, .pptx, .ppt, .pptm, .pot, .potx, .potm, .ppsx, .odp, .otp, .fodp, .pub, .sxw, .stw, .sxg, .sxc, .stc, .sxi, .sti]
+        extensions:
+          [
+            .docx,
+            .doc,
+            .docm,
+            .dot,
+            .dotx,
+            .dotm,
+            .odt,
+            .ott,
+            .fodt,
+            .odm,
+            .otm,
+            .oth,
+            .rtf,
+            .xlsx,
+            .xls,
+            .xlsm,
+            .xlsb,
+            .xla,
+            .xltx,
+            .xltm,
+            .ods,
+            .ots,
+            .fods,
+            .dif,
+            .slk,
+            .dbf,
+            .pptx,
+            .ppt,
+            .pptm,
+            .pot,
+            .potx,
+            .potm,
+            .ppsx,
+            .odp,
+            .otp,
+            .fodp,
+            .pub,
+            .sxw,
+            .stw,
+            .sxg,
+            .sxc,
+            .stc,
+            .sxi,
+            .sti
+          ]
   sandbox:
     allow-scripts: true
     allow-same-origin: true
