@@ -523,7 +523,7 @@ spec:
         extension: .std
         editable: false
   # Agent tools: read_document lets the AI agent read a document, spreadsheet or presentation headlessly with the
-  # user's consented node.file.read access. Office converts the saved file with its own CODE server.
+  # user's consented file.read access. Office converts the saved file with its own CODE server.
   tools:
     - key: read_document
       title: Read document
@@ -543,7 +543,7 @@ spec:
             description: Absolute workspace path of the file, for example /reports/q1.docx.
         additionalProperties: true
       effect: read
-      scopes: [ node.file.read ]
+      scopes: [ file.read ]
       timeout-seconds: 120
       implementation:
         type: app-backend

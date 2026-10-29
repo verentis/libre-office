@@ -18,7 +18,7 @@ Your platform operator must provide the Office wrapper, Collabora service and pl
 
 The external editor and its operator receive and process document content under the approved consent. Format support and view/edit availability vary by file type, and complex formatting may differ from other office suites. This is Collabora in the browser, not desktop LibreOffice. A successful save must be confirmed by the workspace; an unsigned offline package cannot authorise a live editor session.
 
-The agent's read tool asks for read access to workspace files (node.file.read). When the agent reads a document, Office downloads the last saved version with a short-lived token for that user, converts it to text with its Collabora service and returns the text without storing it. While you have a document open and follow the agent, it can read only the text you've selected and insert text at your cursor. Office never saves for the agent: you review the change and save it. The agent can't read drawings, and it can't edit documents that aren't open.
+The agent's read tool asks for read access to workspace files (file.read). When the agent reads a document, Office downloads the last saved version with a short-lived token for that user, converts it to text with its Collabora service and returns the text without storing it. While you have a document open and follow the agent, it can read only the text you've selected and insert text at your cursor. Office never saves for the agent: you review the change and save it. The agent can't read drawings, and it can't edit documents that aren't open.
 
 ## A closer look
 

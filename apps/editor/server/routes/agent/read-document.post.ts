@@ -5,7 +5,7 @@ import {
 
 /**
  * The read_document agent tool (spec.tools): the platform calls it with a token minted for the calling user and
- * capped to node.file.read. Office downloads the saved file with that token, converts it with its own CODE server
+ * capped to file.read. Office downloads the saved file with that token, converts it with its own CODE server
  * and returns text. Nothing is stored; the token is used once and only against the platform origin.
  */
 const NOTES = {

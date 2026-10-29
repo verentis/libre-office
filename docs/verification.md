@@ -24,7 +24,7 @@ PUT `/v1/app-installations/editor-pre-consents` returned 403. Resource runtime
 logs corroborate both denials. The request forwards the interactive caller;
 Resource's pre-consent handler requires a normal workspace-bound administrator
 token through `HostedInstallationAdministrator` / `InstallationAuthorization`.
-The graph approval client omitted the required `account.workspace.update`
+The graph approval client omitted the required `workspace.write`
 scope; the correction below resolved that failure without changing Resource
 authorization. A subsequent upload failure exposed the CLI's obsolete
 `workspaceId` token selector. The CLI now uses Security's generalized `resourceId`
@@ -83,7 +83,7 @@ session remains; no shared runtime or other agent's worktree was stopped.
 The Office install helper already follows the current wizard's Editor step and
 approves consent before installation. A source-level caller-scope mismatch was
 found instead: `useInstallationGraphs.approve` requested
-`resources.resource.update` but omitted `account.workspace.update`, which
+`installation.write` but omitted `workspace.write`, which
 `HostedInstallationAdministrator` requires when recording editor pre-consent.
 Approval now requests that additional scope only when the signed graph preview
 contains editors; ordinary app/dependency installations retain their existing

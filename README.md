@@ -23,7 +23,7 @@ Normal applications accessing workspace APIs continue to require normal OAuth.
 `spec.tools.read_document` (`POST /agent/read-document`) is the agent's read tool for
 text documents, spreadsheets and presentations. `spec.actor` names it as the `read-tool` of a
 `document` surface. The platform calls it with a token minted for the calling user
-and capped to `node.file.read`. The wrapper downloads the saved file from the
+and capped to `file.read`. The wrapper downloads the saved file from the
 platform (`NUXT_PLATFORM_API_URL`, default `NUXT_PUBLIC_WOPI_ORIGIN`), converts it
 with CODE's `/cool/convert-to`, and returns text. It stores nothing. Writer formats
 become plain text. Calc formats become tab-separated rows, under a `## <sheet>`

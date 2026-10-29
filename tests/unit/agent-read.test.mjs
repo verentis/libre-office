@@ -79,7 +79,7 @@ test('the manifest wires read_document as the document read tool', () => {
     const { spec } = parse(readFileSync('manifests/office.app.yaml', 'utf8'));
     const tool = spec.tools.find(candidate => candidate.key === 'read_document');
     assert.equal(tool.effect, 'read');
-    assert.deepEqual(tool.scopes, ['node.file.read']);
+    assert.deepEqual(tool.scopes, ['file.read']);
     assert.deepEqual(tool.implementation, { type: 'app-backend', operation: '/agent/read-document', method: 'POST' });
     const [surface] = spec.actor.surfaces;
     assert.equal(surface.kind, 'document');
