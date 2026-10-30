@@ -1,9 +1,8 @@
 api-version: verentis.io/v1
 kind: Application
 metadata:
-  name: libre-office
-  package-id: libre-office
-  display-name: Libre Office
+  id: libre-office
+  name: Libre Office
   description: View and edit workspace documents, spreadsheets and presentations
     with the Collabora editor.
   icon: "#app"

@@ -40,9 +40,10 @@ for (const text of ['## Before you install', '## Important limits', 'Collabora',
     assert.ok(listing.includes(text), `Installer copy must include ${text}`);
 }
 const assertIdentity = metadata => {
-    assert.equal(metadata.name, 'libre-office');
-    assert.equal(metadata['package-id'], 'libre-office');
-    assert.equal(metadata['display-name'], 'Libre Office');
+    assert.equal(metadata['package-id'], undefined);
+    assert.equal(metadata['display-name'], undefined);
+    assert.equal(metadata.id, 'libre-office');
+    assert.equal(metadata.name, 'Libre Office');
 };
 assertIdentity(manifest.metadata);
 assert.ok(manifest.spec['mime-types'].length > 0);
@@ -53,10 +54,10 @@ assert.equal(manifest.spec['hosted-backend'], undefined);
 assert.ok(manifest.spec.wopi.files.length > 0);
 assert.deepEqual(manifest.spec.wopi.operations, ['rename', 'delete']);
 const local = parse(readFileSync('manifests/environments/local.yaml', 'utf8'));
-assert.equal(local.metadata['display-name'], 'Libre Office');
+assert.equal(local.metadata.name, 'Libre Office');
 assert.equal(local.metadata.labels['integration-status'], 'local-preview');
 const production = parse(readFileSync('manifests/environments/production.yaml', 'utf8'));
-assert.equal(production.metadata['display-name'], 'Libre Office');
+assert.equal(production.metadata.name, 'Libre Office');
 assert.equal(production.metadata.labels['integration-status'], 'production');
 assert.equal(production.spec.entry, 'https://office.apps.verentis.dev');
 assert.deepEqual(production.spec.capabilities, ['wopi']);
@@ -79,9 +80,9 @@ for (const env of ['base', 'local', 'production']) {
     const packed = parse(execFileSync('tar', ['-xOzf', path, 'manifest.yaml'], { encoding: 'utf8' }));
     const metadata = parse(execFileSync('tar', ['-xOzf', path, '.verentis/package.yaml'], { encoding: 'utf8' }));
     assertIdentity(packed.metadata);
-    assert.equal(metadata.name, 'libre-office');
+    assert.equal(metadata.id, 'libre-office');
     assert.equal(metadata.publisher, 'verentis');
-    assert.equal(metadata['display-name'], 'Libre Office');
+    assert.equal(metadata.name, 'Libre Office');
     const selected = env === 'local' ? local : env === 'production' ? production : manifest;
     assert.equal(packed.spec.entry, selected.spec.entry);
     assert.deepEqual(packed.spec.capabilities, ['wopi']);

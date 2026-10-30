@@ -1,5 +1,5 @@
 metadata:
-  display-name: Libre Office
+  name: Libre Office
   description: Self-hosted Libre Office for Microsoft Office, OpenDocument, RTF, CSV and
     other CODE-supported formats.
   labels:
