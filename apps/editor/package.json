@@ -8,13 +8,13 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
-    "@verentis/sdk": "0.2.5",
-    "nuxt": "4.5.2",
-    "vue": "3.5.43"
+    "@verentis/sdk": "0.2.6",
+    "nuxt": "4.6.3",
+    "vue": "3.5.44"
   },
   "devDependencies": {
-    "@types/node": "24.13.6",
-    "typescript": "5.9.3",
-    "vue-tsc": "3.2.4"
+    "@types/node": "26.6.6",
+    "typescript": "6.0.3",
+    "vue-tsc": "3.3.14"
   }
 }
