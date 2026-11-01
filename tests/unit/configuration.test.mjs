@@ -13,10 +13,10 @@ test('deployment rejects omitted or non-string processing region', () => {
 test('published SDK is exact-versioned and integrity-pinned for standalone and Docker builds', () => {
     const editor = JSON.parse(readFileSync('apps/editor/package.json', 'utf8'));
     const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
-    assert.equal(editor.dependencies['@verentis/sdk'], '0.2.5');
+    assert.equal(editor.dependencies['@verentis/sdk'], '0.2.6');
     const dependency = lock.packages['node_modules/@verentis/sdk'];
-    assert.equal(dependency.version, '0.2.5');
-    assert.equal(dependency.resolved, 'https://registry.npmjs.org/@verentis/sdk/-/sdk-0.2.5.tgz');
+    assert.equal(dependency.version, '0.2.6');
+    assert.equal(dependency.resolved, 'https://registry.npmjs.org/@verentis/sdk/-/sdk-0.2.6.tgz');
     assert.match(dependency.integrity, /^sha512-/);
     const dockerfile = readFileSync('deploy/editor.Dockerfile', 'utf8');
     assert.doesNotMatch(dockerfile, /vendor\/sdk/);

@@ -7,7 +7,7 @@ or a legal determination.
 
 | Component | Version/source | Upstream rights / review |
 | --- | --- | --- |
-| Verentis SDK | npm `@verentis/sdk@0.2.5` | MIT (published package metadata and included `LICENSE`) |
+| Verentis SDK | npm `@verentis/sdk@0.2.6` | MIT (published package metadata and included `LICENSE`) |
 | Verentis CLI | npm `@verentis/cli@0.2.18`, build/validation only | MIT (published package metadata) |
 | Nuxt / Vue | npm locks, Nuxt 4.5.2 / Vue 3.5.43 | MIT |
 | TypeScript / Playwright | npm locks, build/test only | Apache-2.0 |

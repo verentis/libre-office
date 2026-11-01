@@ -282,7 +282,7 @@ reconstruction callback. Malformed, expired, credential-bearing and wrong-scope
 continuations fail closed; Chromium verifies the target deadline independently
 of the retained source launch and preserves later edits through rebinding.
 The historical verification used `verentis-sdk-0.2.0-b72fdeb675b6.tgz`; the
-current dependency is the published `@verentis/sdk@0.2.5` package.
+current dependency is the published `@verentis/sdk@0.2.6` package.
 
 These are local boundary checks, not a new real-key-rotation or warm acceptance
 claim. The parent owns the backend expiry DTO field and warm execution.
