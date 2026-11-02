@@ -4,7 +4,7 @@
 
 ## Why do this later?
 
-The MVP already opens real Verentis documents in Calc, Writer and Impress. Preserve that experience for the sprint preview. The next problem is different: a CODE pod holds an open editor in memory, and replacing or losing that pod can discard edits not durably saved. Keeping a second pod running does not copy the first pod's document state. A weekend-long old pod is not a viable recovery policy.
+The MVP already opens real Verentis documents in Calc, Writer and Impress. Preserve that experience for hosted deployments. The next problem is different: a CODE pod holds an open editor in memory, and replacing or losing that pod can discard edits not durably saved. Keeping a second pod running does not copy the first pod's document state. A weekend-long old pod is not a viable recovery policy.
 
 ```mermaid
 flowchart LR
@@ -62,9 +62,9 @@ Keep old and new CODE versions on distinct services/routes. Direct **new** sessi
 
 The wrapper can be rolled separately. The WOPI backend's current SQLite state has a **single-writer** constraint: do not put two backend versions on the same database. Plan its handover or a storage/coordination redesign before claiming an end-to-end simultaneous old/new stack. Blue/green is for planned changes; a node failure can still kill an active CODE session, leaving recovery at the last durable draft checkpoint.
 
-<Callout id="sprint-tradeoff" tone="warning" title="Accepted sprint limitation">
+<Callout id="sprint-tradeoff" tone="warning" title="Accepted rollout limitation">
 
-Sprint currently deploys on push without blue/green or automatic session draining. A CODE digest or pod-configuration change, or a node failure, may interrupt active edits. Its pinned digest does not change just because Collabora publishes a new tag, but pinning cannot prevent infrastructure failures. Do not present sprint rollout behavior as production-grade continuity.
+Every merge to `main` rolls out to the feature environment and then each production region without blue/green or automatic session draining. A CODE digest or pod-configuration change, or a node failure, may interrupt active edits. Its pinned digest does not change just because Collabora publishes a new tag, but pinning cannot prevent infrastructure failures. Do not present this rollout behavior as production-grade continuity.
 
 </Callout>
 
@@ -79,4 +79,4 @@ Sprint currently deploys on push without blue/green or automatic session drainin
 
 These are investigation and delivery stages, not calendar promises. If CODE cannot provide a supported way to checkpoint live edits without writing the original, the draft-first WOPI source is required and the scope grows. No stage is complete merely because CODE reports “saved”: independently verify bytes, revisions and a fresh reopen.
 
-**Near-term order:** finish dynamic parent-origin validation and the sprint deployment prerequisites; retain the current MVP's working open/render behavior. Start the CODE behavior spike when draft recovery becomes the next approved goal. Do not quietly change save semantics as part of the sprint deployment.
+**Near-term order:** finish dynamic parent-origin validation and the hosted deployment prerequisites; retain the current MVP's working open/render behavior. Start the CODE behavior spike when draft recovery becomes the next approved goal. Do not quietly change save semantics as part of a deployment change.

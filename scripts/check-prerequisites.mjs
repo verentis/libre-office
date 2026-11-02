@@ -1,17 +1,15 @@
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-export function checkPrerequisites(run = args => execFileSync('kubectl', args, {
+// Namespaced reads only: the delivery identity has no cluster-scoped permissions.
+export function checkPrerequisites(namespace, run = args => execFileSync('kubectl', args, {
     encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']
 })) {
-    try {
-        run(['get', 'namespace', 'verentis-apps', '-o', 'name']);
-    } catch {
-        throw new Error('Cannot verify namespace verentis-apps; check cluster access and namespace provisioning.');
-    }
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(namespace ?? ''))
+        throw new Error('Supply a valid target Kubernetes namespace.');
     let proof;
     try {
-        proof = run(['describe', 'secret', 'office-code-proof', '-n', 'verentis-apps']);
+        proof = run(['describe', 'secret', 'office-code-proof', '-n', namespace]);
     } catch {
         throw new Error('Cannot verify office-code-proof; provision an independent RSA CODE proof key and check Secret access (docs/operations.md).');
     }
@@ -19,7 +17,7 @@ export function checkPrerequisites(run = args => execFileSync('kubectl', args, {
         throw new Error('office-code-proof must contain a nonempty proof_key; provision the operator-managed RSA CODE proof key (docs/operations.md).');
     let legacy;
     try {
-        legacy = run(['get', 'deployment,service,ingress', 'office-wopi', '-n', 'verentis-apps', '--ignore-not-found', '-o', 'name']);
+        legacy = run(['get', 'deployment,service,ingress', 'office-wopi', '-n', namespace, '--ignore-not-found', '-o', 'name']);
     } catch {
         throw new Error('Cannot verify retired Office WOPI resources; check cluster access before deploying.');
     }
@@ -29,8 +27,9 @@ export function checkPrerequisites(run = args => execFileSync('kubectl', args, {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
     try {
-        checkPrerequisites();
-        console.log('Sprint namespace, CODE proof custody and retired WOPI resource prerequisites verified.');
+        if (process.argv.length !== 3) throw new Error('Usage: node scripts/check-prerequisites.mjs <namespace>');
+        checkPrerequisites(process.argv[2]);
+        console.log('CODE proof custody and retired WOPI resource prerequisites verified.');
     } catch (error) {
         console.error(error.message);
         process.exitCode = 1;

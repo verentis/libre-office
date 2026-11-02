@@ -18,7 +18,8 @@ for (const [extension, format] of Object.entries(formats)) {
 const expected = { 'mime-types': [...bindings.values()], 'file-types': [...fileTypes.values()] };
 const wopiFiles = Object.entries(formats).flatMap(([extension, format]) =>
     format.mimeTypes.map(mime => ({ 'mime-type': mime, extension: `.${extension}`, editable: format.mode === 'edit' })));
-for (const path of ['manifests/office.app.yaml', 'manifests/environments/local.yaml', 'manifests/environments/production.yaml']) {
+for (const path of ['manifests/office.app.yaml', 'manifests/environments/local.yaml', 'manifests/environments/production.yaml',
+    'manifests/environments/feature.yaml']) {
     const manifest = parse(readFileSync(path, 'utf8'));
     if (process.argv.includes('--check')) {
         for (const [key, value] of Object.entries(expected)) assert.deepEqual(manifest.spec[key], value, `${path}: run npm run sync:formats`);

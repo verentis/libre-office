@@ -1,13 +1,10 @@
 name: Tests
+# Run by pull-request.yml and release.yml before delivery (and on fork pull requests), so each change is checked once.
 on:
-  pull_request:
-  push:
-    branches: [main, 'feat/**']
+  workflow_call:
+  workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: office-checks-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -37,3 +34,8 @@ jobs:
             artifacts/packages/
             artifacts/deploy/
           retention-days: 7
+  validate:
+    uses: verentis/.github/.github/workflows/validate-verentis-package.yml@main
+    with:
+      package-root: manifests
+      manifest: office.app.yaml

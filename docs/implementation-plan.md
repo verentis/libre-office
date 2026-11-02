@@ -164,8 +164,8 @@ synthetic successes do not change MIME claims or integration status.
 
 - Check two-stage persistence assertions and real browser lifecycle coverage.
   [`roundtrip.spec.ts:1`](../tests/browser/roundtrip.spec.ts#L1)
-- Review secret-free checks and retained immutable release artifacts.
+- Review secret-free checks and the build-once trunk delivery.
   [`checks.yml:1`](../.github/workflows/checks.yml#L1)
-  [`prepare-release.yml:1`](../.github/workflows/prepare-release.yml#L1)
+  [`release.yml:1`](../.github/workflows/release.yml#L1)
 - Read exact passed commands and remaining limitations.
   [`verification.md:1`](verification.md#L1)

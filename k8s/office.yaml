@@ -1,15 +1,16 @@
+# Rendered by scripts/render-office.mjs: every placeholder is a whole scalar, replaced by a validated JSON-quoted value.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: office-editor
+  name: __EDITOR_NAME__
   namespace: __NAMESPACE__
 spec:
   replicas: 2
   selector:
-    matchLabels: {app: office-editor}
+    matchLabels: {app: __EDITOR_NAME__}
   template:
     metadata:
-      labels: {app: office-editor}
+      labels: {app: __EDITOR_NAME__}
     spec:
       containers:
         - name: editor
@@ -18,9 +19,9 @@ spec:
             - {name: http, containerPort: 3000}
           env:
             - {name: NUXT_COLLABORATION_URL, value: __PLATFORM_ORIGIN__}
-            - {name: NUXT_CODE_URL, value: "http://office-code:9980"}
-            - {name: NUXT_PUBLIC_WRAPPER_ORIGIN, value: "https://office.apps.verentis.dev"}
-            - {name: NUXT_PUBLIC_EDITOR_ORIGIN, value: "https://office-code.apps.verentis.dev"}
+            - {name: NUXT_CODE_URL, value: __CODE_URL__}
+            - {name: NUXT_PUBLIC_WRAPPER_ORIGIN, value: __WRAPPER_ORIGIN__}
+            - {name: NUXT_PUBLIC_EDITOR_ORIGIN, value: __CODE_ORIGIN__}
             - {name: NUXT_PUBLIC_WOPI_ORIGIN, value: __PLATFORM_ORIGIN__}
           readinessProbe:
             httpGet: {path: /_ready, port: http}
@@ -32,27 +33,27 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: office-editor
+  name: __EDITOR_NAME__
   namespace: __NAMESPACE__
 spec:
   type: ClusterIP
-  selector: {app: office-editor}
+  selector: {app: __EDITOR_NAME__}
   ports:
     - {name: http, port: 3000, targetPort: http}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: office-code
+  name: __CODE_NAME__
   namespace: __NAMESPACE__
 spec:
   replicas: 1
   strategy: {type: Recreate}
   selector:
-    matchLabels: {app: office-code}
+    matchLabels: {app: __CODE_NAME__}
   template:
     metadata:
-      labels: {app: office-code}
+      labels: {app: __CODE_NAME__}
     spec:
       securityContext:
         runAsUser: 1001
@@ -88,7 +89,7 @@ spec:
           emptyDir: {medium: Memory, sizeLimit: 256Mi}
         - name: proof
           secret:
-            secretName: office-code-proof
+            secretName: __PROOF_SECRET__
             defaultMode: 288
             items:
               - {key: proof_key, path: proof_key}
@@ -96,45 +97,43 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: office-code
+  name: __CODE_NAME__
   namespace: __NAMESPACE__
 spec:
   type: ClusterIP
-  selector: {app: office-code}
+  selector: {app: __CODE_NAME__}
   ports:
     - {name: http, port: 9980, targetPort: http}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: office-editor
+  name: __EDITOR_NAME__
   namespace: __NAMESPACE__
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/enable-access-log: "false"
 spec:
   ingressClassName: nginx
   tls:
-    - {hosts: [office.apps.verentis.dev], secretName: office-editor-tls}
+    - {hosts: [__EDITOR_HOST__], secretName: __TLS_SECRET__}
   rules:
-    - host: office.apps.verentis.dev
+    - host: __EDITOR_HOST__
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: office-editor
+                name: __EDITOR_NAME__
                 port: {number: 3000}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: office-code
+  name: __CODE_NAME__
   namespace: __NAMESPACE__
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/enable-access-log: "false"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
@@ -142,20 +141,20 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - {hosts: [office-code.apps.verentis.dev], secretName: office-code-tls}
+    - {hosts: [__CODE_HOST__], secretName: __TLS_SECRET__}
   rules:
-    - host: office-code.apps.verentis.dev
+    - host: __CODE_HOST__
       http:
         paths:
           - path: /browser
             pathType: Prefix
             backend:
               service:
-                name: office-editor
+                name: __EDITOR_NAME__
                 port: {number: 3000}
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: office-code
+                name: __CODE_NAME__
                 port: {number: 9980}
