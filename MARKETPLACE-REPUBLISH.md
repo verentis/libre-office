@@ -1,3 +1,5 @@
 # Marketplace republish
 
-Republish Office after renewing the Sprint publisher federation credentials and stable API endpoint.
+Office is republished by every merge to `main` that changes `manifests/` or the hosted app: the release workflow
+publishes it to the feature registry, then the global production registry. To republish without a change (for example
+after renewing publisher federation credentials), run the **Release** workflow manually with **everything** set.

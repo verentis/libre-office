@@ -18,7 +18,7 @@ test('Nuxt uses injected TLS and rejects incomplete certificate configuration', 
 test('environment overlays bind distinct WOPI wrapper and operator origins without OAuth clients', () => {
     const overlay = name => parse(readFileSync(`manifests/environments/${name}.yaml`, 'utf8'));
     assert.equal(overlay('local').spec.entry, 'https://office.localtest.me');
-    for (const name of ['local', 'production']) {
+    for (const name of ['local', 'feature', 'production']) {
         assert.equal(overlay(name).spec.wopi['editor-origin'], overlay(name).spec.entry);
         assert.equal(overlay(name).spec['hosted-backend'], undefined);
     }

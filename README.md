@@ -85,9 +85,12 @@ scoped WOPI token to the trusted CODE action.
 
 ## Verification
 
-The GitHub **Tests** workflow checks packages, deployment configuration, framing
-and the wrapper image without deployment credentials. Both it and the sprint
-deployment install Chromium and its system dependencies before framing tests.
+The GitHub **Tests** workflow (`checks.yml`) checks packages, deployment
+configuration, framing and the wrapper image without deployment credentials,
+installing Chromium and its system dependencies before framing tests. It also
+runs the shared package validation for the base manifest and every environment
+overlay. The pull request and release workflows run it first and deliver only
+when it passes.
 
 ```sh
 npx playwright install chromium --only-shell
@@ -120,20 +123,14 @@ publish, install or deploy them. It inspects base/local/production archives for
 the Libre Office identity and unchanged WOPI contract. The vendored SDK archive is integrity-pinned in
 the lockfile. `npm run fixtures` regenerates document fixtures, not a WOPI host.
 
-After the `feat/**` sprint deployment rolls out the current commit's editor
-image and verifies both live endpoints, `.github/workflows/deploy-sprint.yml`
-submits a signed production-overlay package from `manifests/` via publisher
-GitHub OIDC. A failed deployment skips publication. Configure the protected
-`sprint` environment, organization secrets
-`SPRINT_API_URL` and `PUBLISHER_SIGNING_KEY` (CLI JSON signing key), and publisher
-federation trust for this repository. The shared workflow derives the package
-version from GitVersion; `GitVersion.yml` labels `feat/*` releases as
-prereleases without a pinned base.
-This manifest-only package needs no npm build;
-`checks.yml` still builds and verifies the wrapper independently. Publication
-does not deploy CODE or the wrapper, install the package, or grant WOPI consent.
-`prepare-release.yml` remains manual and offline. New Sprint listings are
-Private until a separate public-readiness review authorizes visibility.
+Delivery uses the shared trunk-based app workflows
+([contract](https://github.com/verentis/.github/blob/main/docs/app-delivery.md)):
+a pull request deploys a preview as `office-pr-<n>` / `office-code-pr-<n>` in the
+internal `feature` environment and publishes a matching prerelease package; a
+merge to `main` builds the editor image once and rolls the same digest to
+`feature`, the first production region (observed), the remaining regions, and
+then publishes `manifests/office.app.yaml` to the feature and global production
+registries. Publication does not install the package or grant WOPI consent.
 
 ## Layout
 
@@ -145,19 +142,22 @@ Private until a separate public-readiness review authorizes visibility.
 
 ## Deployment
 
-The sprint workflow is restricted to `feat/**` branches in
-`verentis/libre-office`, including manual dispatch, and retains the `sprint`
-environment approval gate. Set the nonsecret environment variable
-`PLATFORM_ORIGIN` to the exact sprint HTTPS API origin; Azure deployment
-credentials remain secrets. Store one durable RSA private PEM as the
-environment secret `CODE_PROOF_KEY`; deployment creates a missing Kubernetes
-proof Secret, preserves the same key and rejects accidental rotation. Never
-generate a new key per rollout. See the [operator prerequisites](docs/operations.md#sprint-aks-deployment):
-the operator retired the sprint `office-wopi` deployment/service/ingress and
-provisioned `office-code-proof` on 2026-09-28. Existing wrapper/CODE workloads
-were not rolled out; the next CODE deployment must mount the key and verify
-signed callbacks. The private key belongs only to CODE, not the wrapper or
-platform workloads. Package checks do not deploy these changes.
+`.github/verentis-delivery.json` declares the hosted app `office`: only the
+editor image (`deploy/editor.Dockerfile`) is built; CODE runs the digest pinned
+in `deploy/code.lock.json`. `scripts/render-office.mjs` renders `k8s/office.yaml`
+for each target from the shared deploy action's environment: every name and host
+gets the preview suffix, ingresses use the platform's wildcard certificate in the
+apps namespace, WOPI and the CODE allowlist name the target's `PLATFORM_ORIGIN`,
+and CODE's frame policy allows the wrapper and the target's workspace hosts.
+Production hosts are `office.apps.verentis.io` and `office-code.apps.verentis.io`.
+
+Each target environment (`feature`, `production-<region>`) needs one durable
+RSA private PEM as the environment secret `CODE_PROOF_KEY`. Only `pre-deploy`
+receives it: it verifies the CODE pin, creates a missing `office-code-proof`
+Secret in the apps namespace, preserves the same key and rejects accidental
+rotation. Previews mount the same Secret read-only and never replace it. Never
+generate a new key per rollout; see [operations](docs/operations.md#hosted-deployment).
+The private key belongs only to CODE, not the wrapper or platform workloads.
 
 See [architecture](docs/architecture.md), [API](docs/api.md),
 [operations](docs/operations.md), [verification](docs/verification.md) and

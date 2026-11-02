@@ -146,120 +146,78 @@ Material signed-package changes require renewed consent. Promote immutable
 reviewed wrapper/CODE artifacts only after live evidence; this code change does
 not publish packages or deploy workloads.
 
-## Sprint AKS deployment
+## Hosted deployment
 
-The hosting-owned workload templates and workflows configure wrapper/CODE only,
-using the platform gateway for callbacks. Platform deployment owns Collaboration
-database, messaging, workload credentials and durable signing material.
-No Office-specific OAuth secret or old Office WOPI service is required.
+The hosting-owned workload template and delivery configuration cover wrapper and
+CODE only, using the platform gateway for callbacks. Platform deployment owns
+Collaboration database, messaging, workload credentials and durable signing
+material. No Office-specific OAuth secret or old Office WOPI service is required.
+The repository is `verentis/libre-office`; the `office-editor` image/workload,
+`office-code` workload and `office-code-proof` Secret keep their names. Platform
+remains the sole WOPI authority.
 
-The repository is `verentis/libre-office`; the checkout directory remains
-`office`. The root npm package is `verentis-libre-office`, but the internal
-`@verentis/office-editor` workspace, `office-editor` ACR image/workload,
-`office-code` workload, `office-code-proof` Secret and HTTPS DNS origins remain
-unchanged. Platform remains the sole WOPI authority.
+Delivery follows the shared trunk-based app contract
+(`verentis/.github` `docs/app-delivery.md`). `pull-request.yml` and `release.yml`
+first run `checks.yml` (unit, package, deploy-render, framing and image checks
+plus shared package validation); nothing is built, deployed or published unless
+it passes. `.github/verentis-delivery.json` declares the hosted app `office`:
 
-### GitHub configuration after repository rename
-
-The deployment workflow accepts feature-branch pushes and manual dispatch only
-on `refs/heads/feat/**` in `verentis/libre-office`. It uses the existing `sprint`
-environment and its approval protection; it does not enable deployment from
-`main`. Manual dispatch requires GitHub to recognize the workflow on the default
-branch before an operator can select a feature branch.
-
-| Environment setting | Source |
+| Setting | Value |
 | --- | --- |
-| `PLATFORM_ORIGIN` | Nonsecret `sprint` environment variable; expected current value `https://api.sprint.verentis.dev`, verified against the live Office deployment |
-| `CODE_PROOF_KEY` | Durable per-environment secret containing an unencrypted RSA private PEM key, at least 2048 bits; passed only to the provisioning step |
-| `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | Existing Azure deployment secrets; retain them |
-| `ACR_NAME`, `ACR_LOGIN_SERVER`, `AKS_CLUSTER_NAME`, `AKS_RESOURCE_GROUP` | Existing deployment settings supplied as secrets |
+| Image | `verentis/office-editor` from `deploy/editor.Dockerfile` (the only image built; CODE uses the pinned upstream digest) |
+| Render | `node scripts/render-office.mjs` (no npm dependencies) |
+| Pre-deploy | `verify-code-lock.mjs`, then `provision-code-proof.mjs "$NAMESPACE"`, then `check-prerequisites.mjs "$NAMESPACE"` |
+| Secrets | `CODE_PROOF_KEY`, exported to pre-deploy and render only |
+| Deployments | `office-code`, `office-editor` (plus the preview suffix) |
+| Health | `https://office<suffix>.<apps domain>/_ready`, `https://office-code<suffix>.<apps domain>/hosting/discovery` |
 
-The renderer consumes `PLATFORM_ORIGIN`, not `OFFICE_PLATFORM_ORIGIN`; the
-workflow reads `vars.PLATFORM_ORIGIN`, never the obsolete Office origin secret.
-It requires the exact lowercase `https://api.sprint.verentis.dev` origin,
-with no credentials, explicit port, path, trailing slash, query or fragment.
-Missing, malformed and non-sprint origins fail before Azure login. This same
-origin sets wrapper callbacks and the CODE `:443` allowlist; do not remove it as
-an unused credential.
+The renderer reads the deploy action's `IMAGE HOST APP_NAME HOST_SUFFIX
+APPS_DOMAIN NAMESPACE TLS_SECRET PLATFORM_ORIGIN` and fails closed unless:
+the image is `…/verentis/office-editor@sha256:…`; `APP_NAME` is `office` plus
+the suffix and `HOST` is `APP_NAME.APPS_DOMAIN`; `APPS_DOMAIN` is
+`apps.<platform root>`; and `PLATFORM_ORIGIN` is an exact lowercase HTTPS origin
+(no credentials, port, path, trailing slash, query or fragment) under that root.
+Every workload, service and ingress name and selector carries the suffix, so
+previews never collide with the stable copy. Ingresses use the platform's
+wildcard certificate (`TLS_SECRET`) in the apps namespace; there is no per-app
+certificate or cluster-scoped object.
 
-The coordinating operator verified the remote rename/configuration on
-2026-09-28: repository `verentis/libre-office` retains ID `1383214064`;
-`PLATFORM_ORIGIN` is set in `sprint`; obsolete `OFFICE_CLIENT_ID`,
-`OFFICE_CLIENT_SECRET` and `OFFICE_PLATFORM_ORIGIN` secrets were deleted.
-Azure deployment credentials remain. Both Azure classic and immutable
-federated subjects were updated: the classic subject is
-`repo:verentis/libre-office:environment:sprint`, and the verified immutable
-repository prefix is `repo:verentis@191838680/libre-office@1383214064`.
-The `feat/**` environment policy and required reviewer were retained.
-These remote configuration checks are separate from local source checks.
-Subsequent authorized cluster preparation is recorded below. Reverify
-federation and environment settings before deployment.
+`PLATFORM_ORIGIN` sets wrapper callbacks and CODE's `:443` WOPI allowlist. CODE's
+static frame policy allows the wrapper origin and the target's workspace hosts
+(`https://*.<platform root>`, for example `https://*.verentis.io`); the wrapper's
+`/browser` proxy narrows it per request to the wrapper and the exact embedding
+parent. Known looseness: the wildcard also matches other apps' hosts
+(`*.apps.<platform root>`) and does not cover verified custom workspace domains;
+CODE pages outside `/browser` therefore remain frameable by any platform-root host.
+Production hosts are `office.apps.verentis.io` and
+`office-code.apps.verentis.io`; the feature overlay takes its hosts from publish
+parameters.
 
-### Fail-closed operator prerequisites
+### Proof-key provisioning
 
-An initial read-only check found the legacy workload present and the proof
-Secret absent. After explicit authorization, the coordinating operator
-completed these prerequisites on 2026-09-28 in context
-`aks-verentis-dev-southafricanorth`, namespace `verentis-apps`:
-
-- Deleted the exact `office-wopi` deployment, service and ingress; verified
-  its pods were absent.
-- Created `office-code-proof` using the existing proof-key helper and verified
-  the private key is valid RSA. The provisioning file was cleaned up.
-
-The existing editor/CODE workloads were unchanged; no new rollout occurred.
-The old `office-state` PVC and backend authentication Secret were deliberately
-retained. Their review, credential revocation and eventual retirement remain
-separate operator work; do not silently delete retained state or credentials.
-The workflow does not remove them or certify their retirement.
-
-On the next approved rollout, the new `office-code` deployment must mount
-`office-code-proof`'s `proof_key` read-only at `/etc/coolwsd/proof_key`.
-This private key belongs only to the Office/CODE deployment, **not** the Nuxt
-wrapper or any platform workload. Platform Collaboration consumes CODE's
-public discovery proof keys and retains separate WOPI token-signing material.
-Creating the Secret alone does not retrofit an existing pod's volume mounts.
-Coordinate the rollout with active sessions, preserve the existing Secret,
-and verify discovery and real signed callbacks before claiming readiness.
-
-Before deployment, recheck namespace, ingress/TLS, federation, platform origin
-and RBAC for prerequisite reads, immutable deployment and rollout checks.
-For other environments, retire the legacy authority through an approved,
-session-drained procedure and provision independent CODE proof custody first.
-Never reuse platform signing keys or generate keys during CI.
-
-### Repeatable proof-key provisioning
-
-Each deployment environment must have a durable GitHub environment secret
-named `CODE_PROOF_KEY`. It contains the **complete RSA private PEM**, not a
-random password, public key, fingerprint, or base64-encoded PEM. Generate it
-once through the approved custody procedure (the existing `proof-key.mjs`
-helper produces 3072-bit RSA), retain approved backups, and reuse that key on
-every rollout. Use a separate key for each environment.
-
-For sprint, the coordinating operator seeded `CODE_PROOF_KEY` from the exact
-already-provisioned valid RSA cluster key and verified GitHub secret presence
-on 2026-09-28. No rotation was performed. Do not generate a replacement key
-as part of an ordinary deployment.
-For a new environment, an operator can initialize an approved custody file
-once and upload it via stdin, without placing private material in arguments:
+Each target environment (`feature` and every `production-<region>`) must have a
+durable GitHub environment secret named `CODE_PROOF_KEY`. It contains the
+**complete RSA private PEM**, not a random password, public key, fingerprint, or
+base64-encoded PEM. Generate it once through the approved custody procedure
+(the `proof-key.mjs` helper produces 3072-bit RSA), retain approved backups, and
+reuse that key on every rollout. Use a separate key for each environment.
+Upload it via stdin, without placing private material in arguments:
 
 ```bash
 umask 077
 node scripts/proof-key.mjs init artifacts/code-proof/proof_key
-gh secret set CODE_PROOF_KEY --repo verentis/libre-office --env sprint \
+gh secret set CODE_PROOF_KEY --repo verentis/libre-office --env <environment> \
   < artifacts/code-proof/proof_key
 ```
 
-Select the appropriate environment instead of `sprint` for future environments.
 Protect the custody file and backups; do not commit or include them in logs.
-The workflow never regenerates keys and never writes the key to a runner file,
-render artifact, package, Docker build context or image.
+Delivery never regenerates keys and never writes the key to a runner file,
+render artifact, package, Docker build context or image. A missing secret fails
+the deploy.
 
-After Azure authentication and cluster selection, the provisioning step alone
-receives `secrets.CODE_PROOF_KEY` in its environment and runs
-`node scripts/provision-code-proof.mjs verentis-apps`. The helper validates
-unencrypted RSA private-key material before cluster access, then:
+`pre-deploy` runs `node scripts/provision-code-proof.mjs "$NAMESPACE"` in the
+target apps namespace. The helper validates unencrypted RSA private-key material
+before cluster access, then:
 
 - Reads `office-code-proof` privately; malformed or unreadable existing data
   fails closed without replacement.
@@ -272,35 +230,35 @@ unencrypted RSA private-key material before cluster access, then:
   the intended key. It never uses apply/patch to overwrite an existing key.
 
 The helper removes `CODE_PROOF_KEY` from the `kubectl` child environment and
-captures its output privately. CI RBAC needs Secret get/create permissions in
-the target namespace; logs and shell tracing must remain free of secret dumps.
-Provisioning runs before image build and the ordinary fail-closed prerequisites;
-the latter run again before workload apply.
+captures its output privately. The delivery identity needs Secret get/create in
+the apps namespace. The Secret is created outside the rendered manifests, so it
+carries no preview label: closing a pull request never removes it, and previews
+in the same namespace mount the stable copy's key read-only.
 
 Changing the GitHub secret alone is **not** rotation: deployment will reject
 the mismatch. Pause deployments, drain sessions and coordinate GitHub custody,
 the Kubernetes Secret and CODE's restart using the explicit rotation procedure
 below. Verify public discovery and real signed callbacks before resuming.
 
-`scripts/check-sprint-prerequisites.mjs` runs before the image build and again
-immediately before apply. A missing/empty proof Secret, any `office-wopi`
-deployment/service/ingress, or a cluster read failure aborts deployment.
-The check reads Secret metadata/byte counts, not private-key values. A nonempty
-Secret is not proof of RSA validity or working callback signatures: the operator
-must verify those through discovery and signed callbacks after rollout.
+`scripts/check-prerequisites.mjs "$NAMESPACE"` then requires a nonempty
+`proof_key` in `office-code-proof` and no `office-wopi`
+deployment/service/ingress; a cluster read failure aborts deployment. It reads
+Secret metadata/byte counts, not private-key values, and only namespaced
+resources. A nonempty Secret is not proof of RSA validity or working callback
+signatures: verify those through discovery and signed callbacks after rollout.
 
-Only the wrapper image is built/pushed; CODE uses its pinned upstream digest.
 Only wrapper and CODE manifests are applied, retaining strict TLS verification,
 proof isolation, credential-safe logging and the 120-second CODE storage budget.
-No WOPI backend is built or deployed by this workflow.
+CODE uses a `Recreate` strategy: a CODE digest or pod-configuration change
+interrupts active edits in each region it reaches. The private key belongs only
+to CODE, **not** the Nuxt wrapper or any platform workload; Platform
+Collaboration consumes CODE's public discovery proof keys and retains separate
+WOPI token-signing material.
 
-The signed package is now `verentis/libre-office` / **Libre Office**. Existing
-`verentis/office` installations and old warm-harness baseline state are not
-automatically migrated. Publish/install the new identity, approve its exact
-consent candidate and prepare a fresh harness app baseline at a coordinated safe
-point. The harness scenario IDs (`office`, `app-office`) and checkout/host paths
-remain unchanged. Do not run or restart the user's active warm stack to validate
-this source-only rename.
+The signed package is `verentis/libre-office` / **Libre Office**. Existing
+`verentis/office` installations are not automatically migrated; publish/install
+the new identity and approve its exact consent candidate. The harness scenario
+IDs (`office`, `app-office`) and checkout/host paths remain unchanged.
 
 ## CODE proof-key custody
 
@@ -337,14 +295,14 @@ The focused `platform/utilities/local-office` host requires an already-running
 platform; it is not a replacement WOPI service.
 
 The following are **manual operator deployment commands**, not part of local
-checks. Normal CI uses the durable GitHub secret and provisioning helper above;
+checks. Normal delivery uses the durable GitHub secret and provisioning helper above;
 direct Kubernetes commands are for explicitly coordinated custody/rotation.
 From the Office repository, initially provision the independent CODE key:
 
 ```bash
 umask 077
 node scripts/proof-key.mjs init artifacts/code-proof/proof_key
-kubectl create secret generic office-code-proof --namespace verentis-apps \
+kubectl create secret generic office-code-proof --namespace <apps-namespace> \
   --from-file=proof_key=artifacts/code-proof/proof_key \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
@@ -369,12 +327,15 @@ update the matching GitHub environment secret from the same custody file
 
 ```bash
 node scripts/proof-key.mjs rotate artifacts/code-proof/proof_key --drained
-kubectl create secret generic office-code-proof --namespace verentis-apps \
+kubectl create secret generic office-code-proof --namespace <apps-namespace> \
   --from-file=proof_key=artifacts/code-proof/proof_key \
   --dry-run=client -o yaml | kubectl apply -f -
-kubectl rollout restart deployment/office-code --namespace verentis-apps
-kubectl rollout status deployment/office-code --namespace verentis-apps
+kubectl rollout restart deployment/office-code --namespace <apps-namespace>
+kubectl rollout status deployment/office-code --namespace <apps-namespace>
 ```
+
+Previews in the same namespace (`office-code-pr-<n>`) mount the same Secret;
+restart them too, or close their pull requests, before admitting sessions.
 
 The helper retains the previous private file as `proof_key.old-<unique-id>`.
 Do not assume the pinned CODE build supports separately configured current and

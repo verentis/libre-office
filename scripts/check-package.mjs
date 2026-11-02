@@ -59,7 +59,15 @@ assert.equal(local.metadata.labels['integration-status'], 'local-preview');
 const production = parse(readFileSync('manifests/environments/production.yaml', 'utf8'));
 assert.equal(production.metadata.name, 'Libre Office');
 assert.equal(production.metadata.labels['integration-status'], 'production');
-assert.equal(production.spec.entry, 'https://office.apps.verentis.dev');
+assert.equal(production.spec.entry, 'https://office.apps.verentis.io');
+assert.equal(production.spec.wopi['operator-origin'], 'https://office-code.apps.verentis.io');
+// Feature hosts are publish-time parameters; the shared validation workflow validates this overlay with sample values.
+const feature = parse(readFileSync('manifests/environments/feature.yaml', 'utf8'));
+assert.equal(feature.spec.entry, 'https://${param:app-host}');
+assert.equal(feature.spec.wopi['editor-origin'], feature.spec.entry);
+assert.equal(feature.spec.wopi['operator-origin'], 'https://office-code${param:host-suffix}.${param:apps-domain}');
+assert.deepEqual({ ...feature, spec: { ...feature.spec, entry: production.spec.entry, wopi: production.spec.wopi } }, production,
+    'The feature overlay must differ from production only in its hosts');
 assert.deepEqual(production.spec.capabilities, ['wopi']);
 assert.equal(production.spec['hosted-backend'], undefined);
 assert.equal(production.spec.wopi['editor-origin'], production.spec.entry);
