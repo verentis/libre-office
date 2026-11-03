@@ -9,7 +9,7 @@ on:
         type: boolean
         default: false
 permissions:
-  contents: read
+  contents: write  # the release tags its commit v<version> (GitVersion)
   id-token: write
 concurrency:
   group: release
