@@ -97,7 +97,12 @@ for (const env of ['base', 'local', 'production']) {
     assert.deepEqual(packed.spec.permissions, []);
     assert.equal(packed.spec['hosted-backend'], undefined);
     assert.deepEqual(packed.spec.wopi, { ...manifest.spec.wopi, ...selected.spec.wopi });
-    assert.deepEqual(packed.spec['mime-types'], selected.spec['mime-types']);
+    // The CLI inlines icons at pack time: every icon becomes "#<sha256 prefix>" of an SVG in the packed icons map.
+    const withoutIcons = list => list.map(({ icon, ...rest }) => rest);
+    assert.deepEqual(withoutIcons(packed.spec['mime-types']), withoutIcons(selected.spec['mime-types']));
+    for (const { icon } of packed.spec['mime-types']) {
+        if (icon !== undefined) assert.ok(packed.icons?.[icon.replace(/^#/, '')], `mime-type icon ${icon} must resolve to an inlined SVG`);
+    }
     const catalog = JSON.parse(execFileSync('tar', ['-xOzf', path, 'catalog/index.json'], { encoding: 'utf8' }));
     assert.equal(catalog.schemaVersion, 1);
     assert.equal(catalog.readme.source, 'marketplace/README.md');
