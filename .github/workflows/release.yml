@@ -14,13 +14,9 @@ permissions:
 concurrency:
   group: release
   cancel-in-progress: false
+# Tests run in the pull request (pull-request.yml -> checks.yml); after the merge, main only builds and deploys.
 jobs:
-  checks:
-    permissions:
-      contents: read
-    uses: ./.github/workflows/checks.yml
   delivery:
-    needs: checks
     uses: verentis/.github/.github/workflows/app-release.yml@main
     with:
       everything: ${{ inputs.everything || false }}
