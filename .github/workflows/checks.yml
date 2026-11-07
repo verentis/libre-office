@@ -1,5 +1,6 @@
 name: Tests
-# Run by pull-request.yml and release.yml before delivery (and on fork pull requests), so each change is checked once.
+# Run by pull-request.yml before the preview is delivered (and on fork pull requests); the release after the merge
+# does not repeat them.
 on:
   workflow_call:
   workflow_dispatch:

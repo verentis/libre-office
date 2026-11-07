@@ -89,8 +89,8 @@ The GitHub **Tests** workflow (`checks.yml`) checks packages, deployment
 configuration, framing and the wrapper image without deployment credentials,
 installing Chromium and its system dependencies before framing tests. It also
 runs the shared package validation for the base manifest and every environment
-overlay. The pull request and release workflows run it first and deliver only
-when it passes.
+overlay. The pull request workflow runs it first and delivers the preview only
+when it passes; the release after the merge does not repeat it.
 
 ```sh
 npx playwright install chromium --only-shell
@@ -127,10 +127,10 @@ Delivery uses the shared trunk-based app workflows
 ([contract](https://github.com/verentis/.github/blob/main/docs/app-delivery.md)):
 a pull request deploys a preview as `office-pr-<n>` / `office-code-pr-<n>` in the
 internal `feature` environment and publishes a matching prerelease package; a
-merge to `main` builds the editor image once and rolls the same digest to
-`feature`, the first production region (observed), the remaining regions, and
-then publishes `manifests/office.app.yaml` to the feature and global production
-registries. Publication does not install the package or grant WOPI consent.
+merge to `main` runs no tests: it builds the editor image once, deploys the same
+digest directly to each production region in turn (a region succeeds when its
+rollout completes), and then publishes `manifests/office.app.yaml` to the global
+production registry. Publication does not install the package or grant WOPI consent.
 
 ## Layout
 

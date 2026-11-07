@@ -41,13 +41,17 @@ test('delivery ships only the wrapper image and hands the proof key to pre-deplo
         'node scripts/provision-code-proof.mjs "$NAMESPACE"',
         'node scripts/check-prerequisites.mjs "$NAMESPACE"'
     ]);
-    for (const file of ['pull-request.yml', 'release.yml']) {
-        const workflow = parse(readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), 'utf8'));
-        assert.match(workflow.jobs.delivery.uses, /^verentis\/\.github\/\.github\/workflows\/app-(pull-request|release)\.yml@main$/);
-        assert.equal(workflow.jobs.delivery.secrets, 'inherit');
-        assert.equal(workflow.jobs.checks.uses, './.github/workflows/checks.yml');
-        assert.equal(workflow.jobs.delivery.needs, 'checks', `${file}: nothing ships before the repository checks pass`);
-    }
+    const workflow = file => parse(readFileSync(new URL(`../../.github/workflows/${file}`, import.meta.url), 'utf8'));
+    const pullRequest = workflow('pull-request.yml');
+    assert.equal(pullRequest.jobs.delivery.uses, 'verentis/.github/.github/workflows/app-pull-request.yml@main');
+    assert.equal(pullRequest.jobs.delivery.secrets, 'inherit');
+    assert.equal(pullRequest.jobs.checks.uses, './.github/workflows/checks.yml');
+    assert.equal(pullRequest.jobs.delivery.needs, 'checks', 'no preview ships before the repository checks pass');
+    const release = workflow('release.yml');
+    assert.deepEqual(Object.keys(release.jobs), ['delivery'], 'tests belong to the pull request, not the release');
+    assert.equal(release.jobs.delivery.uses, 'verentis/.github/.github/workflows/app-release.yml@main');
+    assert.equal(release.jobs.delivery.secrets, 'inherit');
+    assert.equal(release.jobs.delivery.needs, undefined);
     const checks = parse(readFileSync(new URL('../../.github/workflows/checks.yml', import.meta.url), 'utf8'));
     assert.deepEqual(Object.keys(checks.on).sort(), ['workflow_call', 'workflow_dispatch']);
 });

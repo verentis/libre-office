@@ -64,7 +64,7 @@ The wrapper can be rolled separately. The WOPI backend's current SQLite state ha
 
 <Callout id="sprint-tradeoff" tone="warning" title="Accepted rollout limitation">
 
-Every merge to `main` rolls out to the feature environment and then each production region without blue/green or automatic session draining. A CODE digest or pod-configuration change, or a node failure, may interrupt active edits. Its pinned digest does not change just because Collabora publishes a new tag, but pinning cannot prevent infrastructure failures. Do not present this rollout behavior as production-grade continuity.
+Every merge to `main` rolls out directly to each production region in turn without blue/green or automatic session draining. A CODE digest or pod-configuration change, or a node failure, may interrupt active edits. Its pinned digest does not change just because Collabora publishes a new tag, but pinning cannot prevent infrastructure failures. Do not present this rollout behavior as production-grade continuity.
 
 </Callout>
 
